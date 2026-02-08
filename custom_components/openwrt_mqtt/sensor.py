@@ -1,7 +1,7 @@
 import logging
 import re
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
-from homeassistant.components.mqtt import subscription
+from homeassistant.components.mqtt import async_subscribe
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
@@ -223,12 +223,7 @@ async def async_setup_entry(
 
     for discovery_topic in DISCOVERY_TOPICS:
         topic = f"{topic_prefix}{discovery_topic}"
-        await subscription.async_subscribe(
-            hass,
-            topic,
-            discover_sensors,
-            1,
-        )
+        await async_subscribe(hass, topic, discover_sensors, 1)
 
 class OpenWrtSensor(SensorEntity):
     def __init__(
