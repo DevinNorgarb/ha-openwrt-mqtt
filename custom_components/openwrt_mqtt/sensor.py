@@ -223,7 +223,8 @@ async def async_setup_entry(
 
     for discovery_topic in DISCOVERY_TOPICS:
         topic = f"{topic_prefix}{discovery_topic}"
-        await async_subscribe(hass, topic, discover_sensors, 1)
+        _LOGGER.debug(f"Subscribing to topic: {topic}")
+        await async_subscribe(hass, topic, discover_sensors, qos=1)
 
 class OpenWrtSensor(SensorEntity):
     def __init__(
@@ -287,8 +288,9 @@ class OpenWrtSensor(SensorEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        await subscription.async_subscribe_topics(
-            self.hass,
-            self._state_topic,
-            self._handle_mqtt_message,
-        )
+
+        @callback
+        def message_received(msg):
+            self._handle_mqtt_message(msg.payload)
+
+        await async_subscribe(self.hass, self._state_topic, message_received, qos=1)
