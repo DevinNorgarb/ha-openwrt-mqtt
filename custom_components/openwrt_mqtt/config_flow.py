@@ -30,7 +30,7 @@ class OpenWrtMQTTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class OpenWrtMQTTOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
+        self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict | None = None) -> FlowResult:
         if user_input is not None:
@@ -42,9 +42,8 @@ class OpenWrtMQTTOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(
                         "topic_prefix",
-                        default=self.config_entry.options.get("topic_prefix", DEFAULT_TOPIC_PREFIX),
+                        default=self._config_entry.options.get("topic_prefix", DEFAULT_TOPIC_PREFIX),
                     ): str,
                 }
             ),
         )
-        
