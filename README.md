@@ -1,1 +1,1 @@
-# ha-openwrt-collectd-mqtt
+# ha-openwrt-mqtt
