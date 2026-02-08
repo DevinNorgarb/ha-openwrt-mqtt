@@ -287,9 +287,8 @@ class OpenWrtSensor(SensorEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self.hass.bus.async_listen_once(
-            "mqtt_message_received",
-            lambda msg: self._handle_mqtt_message(msg.data["payload"])
-            if msg.data["topic"] == self._state_topic
-            else None,
+        await subscription.async_subscribe_topics(
+            self.hass,
+            self._state_topic,
+            self._handle_mqtt_message,
         )
