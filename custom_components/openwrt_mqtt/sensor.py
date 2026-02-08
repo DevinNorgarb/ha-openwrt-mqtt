@@ -221,8 +221,9 @@ async def async_setup_entry(
 
         async_add_entities(discovered_sensors.values(), True)
 
+    # Souscrire aux topics de base
     for discovery_topic in DISCOVERY_TOPICS:
-        topic = f"{topic_prefix}{discovery_topic}"
+        topic = f"{topic_prefix}+/{discovery_topic}"
         _LOGGER.debug(f"Subscribing to topic: {topic}")
         await async_subscribe(hass, topic, discover_sensors, qos=1)
 
