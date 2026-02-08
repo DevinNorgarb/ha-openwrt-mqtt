@@ -20,7 +20,7 @@ async def async_setup_entry(
     discovered_sensors = {}
 
     @callback
-    def discover_sensors(topic: str, payload: str, qos: int, properties: dict) -> None:
+    def discover_sensors(topic: str, payload: str, qos: int) -> None:
         _LOGGER.debug(f"Received MQTT message on {topic}: {payload}")
         parts = topic.split("/")
         if len(parts) < 4:
@@ -222,11 +222,12 @@ async def async_setup_entry(
         async_add_entities(discovered_sensors.values(), True)
 
     for discovery_topic in DISCOVERY_TOPICS:
-        await subscription.async_subscribe_topics(
+        topic = f"{topic_prefix}{discovery_topic}"
+        await subscription.async_subscribe(
             hass,
-            config_entry.entry_id,
-            {f"{topic_prefix}{discovery_topic}": {"topic": f"{topic_prefix}{discovery_topic}", "qos": 1, "encoding": "utf-8"}},
+            topic,
             discover_sensors,
+            1,
         )
 
 class OpenWrtSensor(SensorEntity):
