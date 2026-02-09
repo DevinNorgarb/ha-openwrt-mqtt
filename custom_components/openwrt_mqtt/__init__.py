@@ -1,18 +1,10 @@
+"""The OpenWrt MQTT integration."""
 import logging
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
-from homeassistant.components.mqtt import (
-    subscription,
-    receive_message,
-)
-from homeassistant.helpers import entity_registry as er
-from .const import (
-    DOMAIN,
-    DEFAULT_TOPIC_PREFIX,
-    DISCOVERY_TOPICS,
-)
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.components.mqtt import subscription
+from .const import DOMAIN, DEFAULT_TOPIC_PREFIX, DISCOVERY_TOPICS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +20,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
     @callback
     def discover_devices(topic: str, payload: str, qos: int) -> None:
         """Handle MQTT discovery messages."""
-        _LOGGER.debug(f"Discovered topic: {topic}, payload: {payload}")
+        _LOGGER.debug("Discovered topic: %s, payload: %s", topic, payload)
 
         parts = topic.split("/")
         if len(parts) < 3:
@@ -38,7 +30,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
         metric_type = "/".join(parts[2:])
 
         for discovery_topic in DISCOVERY_TOPICS:
-            if discovery_topic.replace("+", ".*").replace("/", "\\/") in metric_type.replace("/", "\\/"):
+            if discovery_topic.replace("+", hostname).replace("/", "\\/") in metric_type.replace("/", "\\/"):
                 unique_id = f"openwrt_{hostname}_{metric_type.replace('/', '_')}"
                 entity_id = f"sensor.openwrt_{hostname}_{metric_type.replace('/', '_')}"
 
@@ -50,12 +42,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
                         "unique_id": unique_id,
                         "entity_id": entity_id,
                     }
-                    _LOGGER.info(f"Adding new sensor: {entity_id}")
+                    _LOGGER.info("Adding new sensor: %s", entity_id)
 
                     hass.async_create_task(
-                        hass.config_entries.async_forward_entry_setup(
-                            entry, "sensor"
-                        )
+                        hass.config_entries.async_forward_entry_setup(entry, "sensor")
                     )
 
     await subscription.async_subscribe_topics(
