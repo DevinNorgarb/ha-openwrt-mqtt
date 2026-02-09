@@ -27,7 +27,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
             async_add_entities(entities, update_before_add=True)
         except Exception as e:
-            _LOGGER.error(f"Erreur lors de la réception du message MQTT: {e}")
+            _LOGGER.error(f"Erreur lors de la rÃ©ception du message MQTT: {e}")
 
     for discovery_topic in DISCOVERY_TOPICS:
         full_topic = DEFAULT_TOPIC_PREFIX + discovery_topic
