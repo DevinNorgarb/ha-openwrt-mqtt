@@ -34,9 +34,7 @@ class OpenWrtMQTTSensor(SensorEntity):
             self._state = message.payload
             self.async_write_ha_state()
 
-        await self.hass.components.mqtt.async_subscribe(
-            self._data["topic"], message_received, 0
-        )
+        await mqtt.async_subscribe(self.hass, self._data["topic"], message_received, qos=0)
 
     @property
     def native_value(self):
