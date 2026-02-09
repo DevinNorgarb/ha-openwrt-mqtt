@@ -4,6 +4,7 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.components.mqtt import subscription
+from homeassistant.components.mqtt.subscription import Subscription, async_subscribe_topics
 from .const import DOMAIN, DEFAULT_TOPIC_PREFIX, DISCOVERY_TOPICS
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,15 +49,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
                         hass.config_entries.async_forward_entry_setup(entry, "sensor")
                     )
 
-    await subscription.async_subscribe_topics(
-        hass,
-        {
-            f"{topic_prefix}#": {
-                "topic": f"{topic_prefix}#",
-                "msg_callback": discover_devices,
-                "qos": 0,
-            }
-        },
-    )
+    sub_state = [
+        subscription.Subscription(
+            f"{topic_prefix}#",
+            discover_devices,
+            qos=0,
+        )
+    ]
+
+    await async_subscribe_topics(hass, sub_state)
 
     return True
