@@ -50,7 +50,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
 
     await subscription.async_subscribe_topics(
         hass,
-        entry.entry_id,
         {
             f"{topic_prefix}#": {
                 "topic": f"{topic_prefix}#",
