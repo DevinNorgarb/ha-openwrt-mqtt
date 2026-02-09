@@ -1,10 +1,9 @@
-"""The OpenWrt MQTT integration."""
+                   """The OpenWrt MQTT integration."""
 import logging
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.components.mqtt import subscription
-from homeassistant.components.mqtt.subscription import Subscription, async_subscribe_topics
 from .const import DOMAIN, DEFAULT_TOPIC_PREFIX, DISCOVERY_TOPICS
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,14 +48,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
                         hass.config_entries.async_forward_entry_setup(entry, "sensor")
                     )
 
-    sub_state = [
-        subscription.Subscription(
-            f"{topic_prefix}#",
-            discover_devices,
-            qos=0,
-        )
-    ]
-
-    await async_subscribe_topics(hass, sub_state)
+    # S'abonner au topic MQTT
+    await subscription.async_subscribe(
+        hass,
+        f"{topic_prefix}#",
+        discover_devices,
+        0,
+    )
 
     return True
