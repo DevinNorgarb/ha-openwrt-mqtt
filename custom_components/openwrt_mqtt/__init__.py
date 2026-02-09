@@ -1,4 +1,4 @@
-                   """The OpenWrt MQTT integration."""
+"""The OpenWrt MQTT integration."""
 import logging
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, callback
@@ -48,7 +48,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
                         hass.config_entries.async_forward_entry_setup(entry, "sensor")
                     )
 
-    # S'abonner au topic MQTT
     await subscription.async_subscribe(
         hass,
         f"{topic_prefix}#",
