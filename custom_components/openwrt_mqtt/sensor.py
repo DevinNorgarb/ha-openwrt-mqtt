@@ -1,7 +1,7 @@
-                     import logging
+"""Sensor platform for OpenWrt MQTT integration."""
+import logging
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import callback
-from homeassistant.helpers.entity import Entity
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
