@@ -1,24 +1,65 @@
+import logging
+from typing import Any, Dict, Optional
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import callback
-from homeassistant.const import CONF_NAME
-from .const import DOMAIN
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from .const import DOMAIN, DEFAULT_TOPIC_PREFIX
 
-class OpenWrtMQTTFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
-    async def async_step_user(self, user_input=None):
-        if user_input is not None:
-            return self.async_create_entry(title=user_input[CONF_NAME], data=user_input)
+_LOGGER = logging.getLogger(__name__)
 
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema({vol.Required(CONF_NAME): str})
+class OpenWrtMQTTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for OpenWrt MQTT."""
+
+    VERSION = 1
+    CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
+
+    async def async_step_user(
+        self, user_input: Optional[Dict[str, Any]] = None
+    ) -> FlowResult:
+        """Handle the initial step."""
+        if user_input is None:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema(
+                    {
+                        vol.Required("topic_prefix", default=DEFAULT_TOPIC_PREFIX): str,
+                    }
+                ),
+            )
+
+        return self.async_create_entry(
+            title="OpenWrt MQTT Auto-Discovery",
+            data=user_input,
         )
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        return OpenWrtMQTTOptionsFlowHandler(config_entry)
+        """Get the options flow for this handler."""
+        return OpenWrtMQTTOptionsFlow(config_entry)
 
-class OpenWrtMQTTOptionsFlowHandler(config_entries.OptionsFlow):
+class OpenWrtMQTTOptionsFlow(config_entries.OptionsFlow):
+    """Handle options flow for OpenWrt MQTT."""
+
     def __init__(self, config_entry):
+        """Initialize options flow."""
         self.config_entry = config_entry
+
+    async def async_step_init(self, user_input=None):
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "topic_prefix",
+                        default=self.config_entry.data.get("topic_prefix", DEFAULT_TOPIC_PREFIX),
+                    ): str,
+                }
+            ),
+        )

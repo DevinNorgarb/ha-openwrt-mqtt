@@ -1,77 +1,44 @@
-import logging
+                     import logging
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.core import callback
 from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.device_registry import DeviceInfo
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-class OpenWrtSensor(Entity):
-    def __init__(self, device_name, unique_id, topic, payload, topic_suffix):
-        self._device_name = device_name
-        self._unique_id = unique_id
-        self._topic = topic
-        self._state = payload
-        self._topic_suffix = topic_suffix
-        self.hostname = topic.split("/")[1]
-        self._device_info = DeviceInfo(
-            identifiers={(DOMAIN, self.hostname)},
-            name=device_name,
-            manufacturer="OpenWrt"
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up the OpenWrt MQTT sensors."""
+    sensors = []
+    for unique_id, data in hass.data[DOMAIN].items():
+        sensors.append(OpenWrtMQTTSensor(hass, data))
+
+    async_add_entities(sensors, True)
+
+class OpenWrtMQTTSensor(SensorEntity):
+    """Representation of an OpenWrt MQTT sensor."""
+
+    def __init__(self, hass, data):
+        """Initialize the sensor."""
+        self.hass = hass
+        self._data = data
+        self._state = None
+        self._attr_unique_id = data["unique_id"]
+        self._attr_name = f"OpenWrt {data['hostname']} {data['metric_type'].replace('/', ' ')}"
+        self._attr_native_unit_of_measurement = "%" if "memory" in data["metric_type"] or "load" in data["metric_type"] else None
+
+    async def async_added_to_hass(self):
+        """Subscribe to MQTT events."""
+        @callback
+        def message_received(message):
+            """Handle new MQTT messages."""
+            self._state = message.payload
+            self.async_write_ha_state()
+
+        await self.hass.components.mqtt.async_subscribe(
+            self._data["topic"], message_received, 0
         )
 
     @property
-    def unique_id(self):
-        return self._unique_id
-
-    @property
-    def device_info(self):
-        return self._device_info
-
-    @property
-    def name(self):
-        return f"{self._device_name} {self._topic_suffix.replace('/', ' ').replace('-', ' ')}"
-
-    @property
-    def state(self):
+    def native_value(self):
+        """Return the state of the sensor."""
         return self._state
-
-    def update(self):
-        pass
-
-class OpenWrtMemorySensor(OpenWrtSensor):
-    @property
-    def state(self):
-        try:
-            return int(self._state.split(":")[1]) / 1000  # Convertir en Mo
-        except Exception as e:
-            _LOGGER.error(f"Erreur de parsing pour {self._topic}: {e}")
-            return None
-
-    @property
-    def icon(self):
-        return "mdi:memory"
-
-    @property
-    def unit_of_measurement(self):
-        return "MB"
-
-class OpenWrtInterfaceSensor(OpenWrtSensor):
-    @property
-    def state(self):
-        try:
-            if "rx:" in self._state and "tx:" in self._state:
-                rx = int(self._state.split("rx:")[1].split(",")[0])
-                tx = int(self._state.split("tx:")[1])
-                return {"rx": rx, "tx": tx}
-            return None
-        except Exception as e:
-            _LOGGER.error(f"Erreur de parsing pour {self._topic}: {e}")
-            return None
-
-    @property
-    def icon(self):
-        return "mdi:ethernet"
-
-    @property
-    def unit_of_measurement(self):
-        return "bytes"

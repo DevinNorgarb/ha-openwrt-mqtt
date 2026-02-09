@@ -1,36 +1,73 @@
 import logging
-from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.components.mqtt import subscription
-from .const import DOMAIN, DEFAULT_TOPIC_PREFIX, DISCOVERY_TOPICS
+import voluptuous as vol
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.components.mqtt import (
+    subscription,
+    receive_message,
+)
+from homeassistant.helpers import entity_registry as er
+from .const import (
+    DOMAIN,
+    DEFAULT_TOPIC_PREFIX,
+    DISCOVERY_TOPICS,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
-    entities = []
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the OpenWrt MQTT integration."""
+    hass.data[DOMAIN] = {}
+    return True
 
-    @subscription(DEFAULT_TOPIC_PREFIX + "#")
-    def message_received(topic, payload, qos):
-        try:
-            parts = topic.split("/")
-            hostname = parts[1]
-            device_id = f"{DOMAIN}_{hostname}"
-            topic_suffix = "/".join(parts[2:])
-            unique_id = f"{device_id}_{topic_suffix.replace('/', '_').replace('-', '_')}"
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
+    """Set up OpenWrt MQTT from a config entry."""
+    topic_prefix = entry.data.get("topic_prefix", DEFAULT_TOPIC_PREFIX)
 
-            if "memory" in topic_suffix:
-                entities.append(OpenWrtMemorySensor(device_name=f"OpenWRT {hostname}", unique_id=unique_id, topic=topic, payload=payload.decode(), topic_suffix=topic_suffix))
-            elif "interface-" in topic_suffix:
-                entities.append(OpenWrtInterfaceSensor(device_name=f"OpenWRT {hostname}", unique_id=unique_id, topic=topic, payload=payload.decode(), topic_suffix=topic_suffix))
-            else:
-                entities.append(OpenWrtSensor(device_name=f"OpenWRT {hostname}", unique_id=unique_id, topic=topic, payload=payload.decode(), topic_suffix=topic_suffix))
+    @callback
+    def discover_devices(topic: str, payload: str, qos: int) -> None:
+        """Handle MQTT discovery messages."""
+        _LOGGER.debug(f"Discovered topic: {topic}, payload: {payload}")
 
-            async_add_entities(entities, update_before_add=True)
-        except Exception as e:
-            _LOGGER.error(f"Erreur lors de la réception du message MQTT: {e}")
+        parts = topic.split("/")
+        if len(parts) < 3:
+            return
 
-    for discovery_topic in DISCOVERY_TOPICS:
-        full_topic = DEFAULT_TOPIC_PREFIX + discovery_topic
-        await subscription.subscribe(hass, full_topic, message_received)
+        hostname = parts[1]
+        metric_type = "/".join(parts[2:])
+
+        for discovery_topic in DISCOVERY_TOPICS:
+            if discovery_topic.replace("+", ".*").replace("/", "\\/") in metric_type.replace("/", "\\/"):
+                unique_id = f"openwrt_{hostname}_{metric_type.replace('/', '_')}"
+                entity_id = f"sensor.openwrt_{hostname}_{metric_type.replace('/', '_')}"
+
+                if unique_id not in hass.data[DOMAIN]:
+                    hass.data[DOMAIN][unique_id] = {
+                        "topic": topic,
+                        "hostname": hostname,
+                        "metric_type": metric_type,
+                        "unique_id": unique_id,
+                        "entity_id": entity_id,
+                    }
+                    _LOGGER.info(f"Adding new sensor: {entity_id}")
+
+                    hass.async_create_task(
+                        hass.config_entries.async_forward_entry_setup(
+                            entry, "sensor"
+                        )
+                    )
+
+    await subscription.async_subscribe_topics(
+        hass,
+        entry.entry_id,
+        {
+            f"{topic_prefix}#": {
+                "topic": f"{topic_prefix}#",
+                "msg_callback": discover_devices,
+                "qos": 0,
+            }
+        },
+    )
 
     return True
