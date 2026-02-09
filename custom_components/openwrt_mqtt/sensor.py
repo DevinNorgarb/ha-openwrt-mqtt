@@ -1,297 +1,77 @@
 import logging
-import re
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
-from homeassistant.components.mqtt import async_subscribe
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.config_entries import ConfigEntry
-from .const import DOMAIN, DEFAULT_TOPIC_PREFIX, DISCOVERY_TOPICS
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.device_registry import DeviceInfo
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    config_entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    topic_prefix = config_entry.options.get("topic_prefix", DEFAULT_TOPIC_PREFIX)
-    discovered_sensors = {}
-
-    @callback
-    def discover_sensors(topic: str, payload: str, qos: int) -> None:
-        _LOGGER.debug(f"Received MQTT message on {topic}: {payload}")
-        parts = topic.split("/")
-        if len(parts) < 4:
-            return
-
-        device_id = parts[1]
-        metric_type = parts[2]
-        metric_name = parts[3]
-
-        # Device info (extracted from topic)
-        device_info = {
-            "identifiers": {(DOMAIN, device_id)},
-            "name": device_id,
-            "model": "OpenWrt Device",
-            "manufacturer": "OpenWrt",
-        }
-
-        if metric_type == "load" and metric_name == "load":
-            # CPU Load
-            values = payload.split(":")[1].split(",")
-            if len(values) >= 3:
-                for i, load_type in enumerate(["L1", "L5", "L15"]):
-                    unique_id = f"{device_id}_cpu_{load_type.lower()}"
-                    if unique_id not in discovered_sensors:
-                        discovered_sensors[unique_id] = OpenWrtSensor(
-                            name=f"{device_id} CPU {load_type}",
-                            state_topic=topic,
-                            value_template=f"{{{{ (value.split(':')[1].split(',')[{i}] | float(0)) | round(2) }}}}",
-                            unit="load",
-                            unique_id=unique_id,
-                            icon="mdi:gauge",
-                            device_info=device_info,
-                        )
-
-        elif metric_type == "memory":
-            # RAM
-            memory_type = metric_name.split("-")[1]
-            unique_id = f"{device_id}_ram_{memory_type}"
-            if unique_id not in discovered_sensors:
-                discovered_sensors[unique_id] = OpenWrtSensor(
-                    name=f"{device_id} RAM {memory_type.title()}",
-                    state_topic=topic,
-                    value_template="{{ (value.split(':')[1] | float(0) / 1024) | round(1) }}",
-                    unit="MB",
-                    unique_id=unique_id,
-                    device_class=SensorDeviceClass.DATA_SIZE,
-                    icon="mdi:memory",
-                    device_info=device_info,
-                )
-
-        elif metric_type.startswith("interface-"):
-            # Network Interface
-            interface = metric_type.split("-")[1]
-            if metric_name == "if_dropped":
-                unique_id = f"{device_id}_{interface}_dropped"
-                if unique_id not in discovered_sensors:
-                    discovered_sensors[unique_id] = OpenWrtSensor(
-                        name=f"{device_id} {interface} dropped",
-                        state_topic=topic,
-                        value_template="{{ value.split(',')[0].split(':')[1] | int + value.split(',')[1].split(':')[1] | int }}",
-                        unit="packets",
-                        unique_id=unique_id,
-                        icon="mdi:lan-pending",
-                        device_info=device_info,
-                    )
-
-            elif metric_name == "if_errors":
-                unique_id = f"{device_id}_{interface}_errors"
-                if unique_id not in discovered_sensors:
-                    discovered_sensors[unique_id] = OpenWrtSensor(
-                        name=f"{device_id} {interface} errors",
-                        state_topic=topic,
-                        value_template="{{ value.split(',')[0].split(':')[1] | int + value.split(',')[1].split(':')[1] | int }}",
-                        unit="packets",
-                        unique_id=unique_id,
-                        icon="mdi:lan-disconnect",
-                        device_info=device_info,
-                    )
-
-            elif metric_name == "if_octets":
-                unique_id_tx = f"{device_id}_{interface}_tx_mbits"
-                unique_id_rx = f"{device_id}_{interface}_rx_mbits"
-                if unique_id_tx not in discovered_sensors:
-                    discovered_sensors[unique_id_tx] = OpenWrtSensor(
-                        name=f"{device_id} {interface} TX Mb/s",
-                        state_topic=topic,
-                        value_template="{{ (value.split(',')[1].split(':')[1] | float(0) * 8 / 1048576) | round(2) }}",
-                        unit="Mbit/s",
-                        unique_id=unique_id_tx,
-                        device_class=SensorDeviceClass.DATA_RATE,
-                        icon="mdi:upload-network",
-                        device_info=device_info,
-                    )
-                if unique_id_rx not in discovered_sensors:
-                    discovered_sensors[unique_id_rx] = OpenWrtSensor(
-                        name=f"{device_id} {interface} RX Mb/s",
-                        state_topic=topic,
-                        value_template="{{ (value.split(',')[0].split(':')[1] | float(0) * 8 / 1048576) | round(2) }}",
-                        unit="Mbit/s",
-                        unique_id=unique_id_rx,
-                        device_class=SensorDeviceClass.DATA_RATE,
-                        icon="mdi:download-network",
-                        device_info=device_info,
-                    )
-
-            elif metric_name == "if_packets":
-                unique_id = f"{device_id}_{interface}_packets"
-                if unique_id not in discovered_sensors:
-                    discovered_sensors[unique_id] = OpenWrtSensor(
-                        name=f"{device_id} {interface} packets/s",
-                        state_topic=topic,
-                        value_template="{{ value.split(',')[0].split(':')[1] | int + value.split(',')[1].split(':')[1] | int }}",
-                        unit="packets/s",
-                        unique_id=unique_id,
-                        icon="mdi:lan-connect",
-                        device_info=device_info,
-                    )
-
-        elif metric_type == "system":
-            if metric_name == "hostname":
-                hostname = payload
-                for sensor in discovered_sensors.values():
-                    if sensor._device_info["identifiers"] == {(DOMAIN, device_id)}:
-                        sensor._device_info = DeviceInfo(
-                            identifiers={(DOMAIN, device_id)},
-                            name=hostname,
-                            model=sensor._device_info.get("model", "OpenWrt Device"),
-                            manufacturer=sensor._device_info.get("manufacturer", "OpenWrt"),
-                            sw_version=sensor._device_info.get("sw_version", "Unknown"),
-                        )
-
-            elif metric_name == "model":
-                model = payload
-                for sensor in discovered_sensors.values():
-                    if sensor._device_info["identifiers"] == {(DOMAIN, device_id)}:
-                        sensor._device_info = DeviceInfo(
-                            identifiers={(DOMAIN, device_id)},
-                            name=sensor._device_info.get("name", device_id),
-                            model=model,
-                            manufacturer=sensor._device_info.get("manufacturer", "OpenWrt"),
-                            sw_version=sensor._device_info.get("sw_version", "Unknown"),
-                        )
-
-            elif metric_name == "target_platform":
-                target_platform = payload
-                for sensor in discovered_sensors.values():
-                    if sensor._device_info["identifiers"] == {(DOMAIN, device_id)}:
-                        sensor._device_info = DeviceInfo(
-                            identifiers={(DOMAIN, device_id)},
-                            name=sensor._device_info.get("name", device_id),
-                            model=sensor._device_info.get("model", "OpenWrt Device"),
-                            manufacturer=target_platform,
-                            sw_version=sensor._device_info.get("sw_version", "Unknown"),
-                        )
-
-            elif metric_name == "architecture":
-                architecture = payload
-                for sensor in discovered_sensors.values():
-                    if sensor._device_info["identifiers"] == {(DOMAIN, device_id)}:
-                        sensor._device_info = DeviceInfo(
-                            identifiers={(DOMAIN, device_id)},
-                            name=sensor._device_info.get("name", device_id),
-                            model=sensor._device_info.get("model", "OpenWrt Device"),
-                            manufacturer=sensor._device_info.get("manufacturer", "OpenWrt"),
-                            sw_version=sensor._device_info.get("sw_version", "Unknown"),
-                            configuration_url=f"Architecture: {architecture}",
-                        )
-
-            elif metric_name == "version":
-                version = payload
-                for sensor in discovered_sensors.values():
-                    if sensor._device_info["identifiers"] == {(DOMAIN, device_id)}:
-                        sensor._device_info = DeviceInfo(
-                            identifiers={(DOMAIN, device_id)},
-                            name=sensor._device_info.get("name", device_id),
-                            model=sensor._device_info.get("model", "OpenWrt Device"),
-                            manufacturer=sensor._device_info.get("manufacturer", "OpenWrt"),
-                            sw_version=version,
-                        )
-
-            elif metric_name == "uptime":
-                unique_id = f"{device_id}_uptime"
-                if unique_id not in discovered_sensors:
-                    discovered_sensors[unique_id] = OpenWrtSensor(
-                        name=f"{device_id} Uptime",
-                        state_topic=topic,
-                        value_template="{{ (value | float(0) / 86400) | round(2) }}",
-                        unit="days",
-                        unique_id=unique_id,
-                        icon="mdi:clock",
-                        device_info=DeviceInfo(
-                            identifiers={(DOMAIN, device_id)},
-                            name=device_id,
-                            model="OpenWrt Device",
-                            manufacturer="OpenWrt",
-                        ),
-                    )
-
-        async_add_entities(discovered_sensors.values(), True)
-
-    # Souscrire aux topics de base
-    for discovery_topic in DISCOVERY_TOPICS:
-        topic = f"{topic_prefix}+/{discovery_topic}"
-        _LOGGER.debug(f"Subscribing to topic: {topic}")
-        await async_subscribe(hass, topic, discover_sensors, qos=1)
-
-class OpenWrtSensor(SensorEntity):
-    def __init__(
-        self,
-        name: str,
-        state_topic: str,
-        value_template: str,
-        unit: str,
-        unique_id: str,
-        device_class: SensorDeviceClass | None = None,
-        icon: str | None = None,
-        device_info: DeviceInfo | None = None,
-    ) -> None:
-        self._name = name
-        self._state_topic = state_topic
-        self._value_template = value_template
-        self._unit = unit
+class OpenWrtSensor(Entity):
+    def __init__(self, device_name, unique_id, topic, payload, topic_suffix):
+        self._device_name = device_name
         self._unique_id = unique_id
-        self._device_class = device_class
-        self._icon = icon
-        self._device_info = device_info
-        self._state = None
+        self._topic = topic
+        self._state = payload
+        self._topic_suffix = topic_suffix
+        self.hostname = topic.split("/")[1]
+        self._device_info = DeviceInfo(
+            identifiers={(DOMAIN, self.hostname)},
+            name=device_name,
+            manufacturer="OpenWrt"
+        )
 
     @property
-    def name(self) -> str:
-        return self._name
+    def unique_id(self):
+        return self._unique_id
+
+    @property
+    def device_info(self):
+        return self._device_info
+
+    @property
+    def name(self):
+        return f"{self._device_name} {self._topic_suffix.replace('/', ' ').replace('-', ' ')}"
 
     @property
     def state(self):
         return self._state
 
-    @property
-    def native_unit_of_measurement(self) -> str | None:
-        return self._unit
+    def update(self):
+        pass
 
+class OpenWrtMemorySensor(OpenWrtSensor):
     @property
-    def unique_id(self) -> str:
-        return self._unique_id
-
-    @property
-    def device_class(self) -> SensorDeviceClass | None:
-        return self._device_class
-
-    @property
-    def icon(self) -> str | None:
-        return self._icon
-
-    @property
-    def device_info(self) -> DeviceInfo | None:
-        return self._device_info
-
-    @callback
-    def _handle_mqtt_message(self, message: str) -> None:
+    def state(self):
         try:
-            from jinja2 import Template
-            template = Template(self._value_template)
-            self._state = template.render({"value": message})
-            self.async_write_ha_state()
+            return int(self._state.split(":")[1]) / 1000  # Convertir en Mo
         except Exception as e:
-            _LOGGER.error(f"Error processing MQTT message: {e}")
+            _LOGGER.error(f"Erreur de parsing pour {self._topic}: {e}")
+            return None
 
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
+    @property
+    def icon(self):
+        return "mdi:memory"
 
-        @callback
-        def message_received(msg):
-            self._handle_mqtt_message(msg.payload)
+    @property
+    def unit_of_measurement(self):
+        return "MB"
 
-        await async_subscribe(self.hass, self._state_topic, message_received, qos=1)
+class OpenWrtInterfaceSensor(OpenWrtSensor):
+    @property
+    def state(self):
+        try:
+            if "rx:" in self._state and "tx:" in self._state:
+                rx = int(self._state.split("rx:")[1].split(",")[0])
+                tx = int(self._state.split("tx:")[1])
+                return {"rx": rx, "tx": tx}
+            return None
+        except Exception as e:
+            _LOGGER.error(f"Erreur de parsing pour {self._topic}: {e}")
+            return None
+
+    @property
+    def icon(self):
+        return "mdi:ethernet"
+
+    @property
+    def unit_of_measurement(self):
+        return "bytes"

@@ -10,5 +10,9 @@ DISCOVERY_TOPICS = [
     "system/target_platform",
     "system/architecture",
     "system/version",
-    "system/uptime"
+    "system/uptime",
+    "interface-+/if_octets",
+    "interface-+/if_errors",
+    "interface-+/if_dropped",
+    "interface-+/if_packets",
 ]
