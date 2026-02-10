@@ -70,13 +70,13 @@ class OpenWrtMQTTSensor(SensorEntity):
         """Parse the MQTT payload."""
         if "load:" in payload:
             return payload.split(":")[1]
-        elif "value:" in payload:
-            return payload.split(":")[1]
+        elif payload.startswith("value:"):
+            return payload.split(":")[1].strip()
         elif "rx:" in payload and "tx:" in payload:
             parts = payload.split(",")
             rx = parts[0].split(":")[1]
             tx = parts[1].split(":")[1]
-            return f"RX: {rx}, TX: {tx}"
+            return {"rx": rx, "tx": tx}
         else:
             return payload
 
@@ -84,3 +84,10 @@ class OpenWrtMQTTSensor(SensorEntity):
     def native_value(self):
         """Return the state of the sensor."""
         return self._state
+
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        if isinstance(self._state, dict):
+            return self._state
+        return None
