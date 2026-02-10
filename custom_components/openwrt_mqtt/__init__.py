@@ -43,13 +43,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
                     }
                     _LOGGER.info("Adding new sensor: %s", entity_id)
 
+                    # Déclencher la configuration des capteurs
+                    hass.async_create_task(
+                        hass.config_entries.async_forward_entry_setup(entry, "sensor")
+                    )
+
     async def mqtt_message_received(msg):
         """Handle new MQTT messages."""
         discover_devices(msg.topic, msg.payload, msg.qos)
 
     await mqtt.async_subscribe(hass, f"{topic_prefix}#", mqtt_message_received, qos=0)
-
-    # Configuration initiale des capteurs
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
 
     return True
