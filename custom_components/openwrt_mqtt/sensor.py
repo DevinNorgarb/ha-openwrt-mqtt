@@ -3,6 +3,7 @@ import logging
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import callback
 from homeassistant.components import mqtt
+from homeassistant.helpers.device_registry import DeviceInfo
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -11,17 +12,22 @@ async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the OpenWrt MQTT sensors."""
     sensors = []
 
-    # Vérifier si des capteurs ont déjà été configurés
     if DOMAIN not in hass.data:
-        hass.data[DOMAIN] = {"devices": {}, "setup_entities": set()}
+        hass.data[DOMAIN] = {"devices": {}, "setup_entities": set(), "devices_setup": set()}
 
-    # Copie locale du dictionnaire pour éviter les modifications pendant l'itération
-    devices = list(hass.data[DOMAIN]["devices"].items())
-
-    for unique_id, data in devices:
-        if unique_id not in hass.data[DOMAIN]["setup_entities"]:
-            sensors.append(OpenWrtMQTTSensor(hass, data))
-            hass.data[DOMAIN]["setup_entities"].add(unique_id)
+    for hostname, device_info in hass.data[DOMAIN]["devices"].items():
+        if "entities" in device_info:
+            for unique_id, data in device_info["entities"].items():
+                if unique_id not in hass.data[DOMAIN]["setup_entities"]:
+                    device_info_obj = DeviceInfo(
+                        identifiers=device_info["identifiers"],
+                        name=device_info["name"],
+                        manufacturer=device_info["manufacturer"],
+                        model=device_info["model"],
+                        sw_version=device_info["sw_version"],
+                    )
+                    sensors.append(OpenWrtMQTTSensor(hass, data, device_info_obj))
+                    hass.data[DOMAIN]["setup_entities"].add(unique_id)
 
     if sensors:
         async_add_entities(sensors, True)
@@ -29,14 +35,20 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class OpenWrtMQTTSensor(SensorEntity):
     """Representation of an OpenWrt MQTT sensor."""
 
-    def __init__(self, hass, data):
+    def __init__(self, hass, data, device_info):
         """Initialize the sensor."""
         self.hass = hass
         self._data = data
+        self._device_info = device_info
         self._state = None
         self._attr_unique_id = data["unique_id"]
-        self._attr_name = f"OpenWrt {data['hostname']} {data['metric_type'].replace('/', ' ')}"
+        self._attr_name = f"{data['metric_type'].replace('/', ' ').replace('-', ' ').title()}"
         self._attr_native_unit_of_measurement = "%" if "memory" in data["metric_type"] or "load" in data["metric_type"] else None
+
+    @property
+    def device_info(self):
+        """Return the device info."""
+        return self._device_info
 
     async def async_added_to_hass(self):
         """Subscribe to MQTT events."""
