@@ -2,6 +2,7 @@
 import logging
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import callback
+from homeassistant.components import mqtt
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
