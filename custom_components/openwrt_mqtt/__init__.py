@@ -49,7 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
 
     async def mqtt_message_received(msg):
         """Handle new MQTT messages."""
-        discover_devices(msg.topic, msg.payload.decode(), msg.qos)
+        discover_devices(msg.topic, msg.payload, msg.qos)
 
     await mqtt.async_subscribe(hass, f"{topic_prefix}#", mqtt_message_received, qos=0)
 
