@@ -47,7 +47,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
                         hass.config_entries.async_forward_entry_setup(entry, "sensor")
                     )
 
-    def mqtt_message_received(msg):
+    async def mqtt_message_received(msg):
         """Handle new MQTT messages."""
         discover_devices(msg.topic, msg.payload.decode(), msg.qos)
 
