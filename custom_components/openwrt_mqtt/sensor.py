@@ -11,15 +11,17 @@ async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the OpenWrt MQTT sensors."""
     sensors = []
 
-    # Vérifier si des capteurs ont déjà été configurés
-    if DOMAIN not in hass.data or "setup_entities" not in hass.data[DOMAIN]:
+    # Initialiser setup_entities si nécessaire
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
+    if "setup_entities" not in hass.data[DOMAIN]:
         hass.data[DOMAIN]["setup_entities"] = set()
 
     # Copie locale du dictionnaire pour éviter les modifications pendant l'itération
     sensors_data = list(hass.data[DOMAIN].items())
 
     for unique_id, data in sensors_data:
-        if unique_id not in hass.data[DOMAIN]["setup_entities"]:
+        if unique_id not in hass.data[DOMAIN]["setup_entities"] and "topic" in data:
             sensors.append(OpenWrtMQTTSensor(hass, data))
             hass.data[DOMAIN]["setup_entities"].add(unique_id)
 
