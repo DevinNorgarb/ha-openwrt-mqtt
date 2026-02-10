@@ -49,15 +49,35 @@ class OpenWrtMQTTSensor(SensorEntity):
         """Return the device info."""
         return self._device_info
 
+    @property
+    def available(self):
+        """Return True if entity is available."""
+        return self._state is not None
+
     async def async_added_to_hass(self):
         """Subscribe to MQTT events."""
         @callback
         def message_received(message):
             """Handle new MQTT messages."""
-            self._state = message.payload
+            payload = message.payload.decode() if isinstance(message.payload, bytes) else message.payload
+            self._state = self._parse_payload(payload)
             self.async_write_ha_state()
 
         await mqtt.async_subscribe(self.hass, self._data["topic"], message_received, qos=0)
+
+    def _parse_payload(self, payload):
+        """Parse the MQTT payload."""
+        if "load:" in payload:
+            return payload.split(":")[1]
+        elif "value:" in payload:
+            return payload.split(":")[1]
+        elif "rx:" in payload and "tx:" in payload:
+            parts = payload.split(",")
+            rx = parts[0].split(":")[1]
+            tx = parts[1].split(":")[1]
+            return f"RX: {rx}, TX: {tx}"
+        else:
+            return payload
 
     @property
     def native_value(self):
