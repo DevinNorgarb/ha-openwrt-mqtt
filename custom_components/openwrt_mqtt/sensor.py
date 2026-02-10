@@ -9,14 +9,19 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the OpenWrt MQTT sensors."""
-    # Copie locale du dictionnaire pour éviter les modifications pendant l'itération
-    sensors_data = list(hass.data[DOMAIN].items())
     sensors = []
 
+    # Vérifier si des capteurs ont déjà été configurés
+    if DOMAIN not in hass.data or "setup_entities" not in hass.data[DOMAIN]:
+        hass.data[DOMAIN]["setup_entities"] = set()
+
+    # Copie locale du dictionnaire pour éviter les modifications pendant l'itération
+    sensors_data = list(hass.data[DOMAIN].items())
+
     for unique_id, data in sensors_data:
-        if unique_id not in hass.data.get(DOMAIN, {}).get("setup_entities", set()):
+        if unique_id not in hass.data[DOMAIN]["setup_entities"]:
             sensors.append(OpenWrtMQTTSensor(hass, data))
-            hass.data.setdefault(DOMAIN, {}).setdefault("setup_entities", set()).add(unique_id)
+            hass.data[DOMAIN]["setup_entities"].add(unique_id)
 
     if sensors:
         async_add_entities(sensors, True)
