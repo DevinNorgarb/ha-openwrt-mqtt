@@ -18,7 +18,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     for hostname, device_info in hass.data[DOMAIN]["devices"].items():
         if "entities" in device_info:
             for unique_id, data in device_info["entities"].items():
-                if unique_id in hass.data[DOMAIN]["setup_entities"]:
+                if unique_id not in hass.data[DOMAIN].get("configured_entities", set()):
                     device_info_obj = DeviceInfo(
                         identifiers=device_info["identifiers"],
                         name=device_info["name"],
@@ -27,6 +27,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                         sw_version=device_info["sw_version"],
                     )
                     sensors.append(OpenWrtMQTTSensor(hass, data, device_info_obj))
+                    hass.data[DOMAIN].setdefault("configured_entities", set()).add(unique_id)
 
     if sensors:
         async_add_entities(sensors, True)
