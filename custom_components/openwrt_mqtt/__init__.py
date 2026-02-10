@@ -9,7 +9,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the OpenWrt MQTT integration."""
-    hass.data.setdefault(DOMAIN, {})
+    hass.data.setdefault(DOMAIN, {"devices": {}, "setup_entities": set()})
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
@@ -33,8 +33,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
                 unique_id = f"openwrt_{hostname}_{metric_type.replace('/', '_')}"
                 entity_id = f"sensor.openwrt_{hostname}_{metric_type.replace('/', '_')}"
 
-                if unique_id not in hass.data[DOMAIN]:
-                    hass.data[DOMAIN][unique_id] = {
+                if unique_id not in hass.data[DOMAIN]["devices"]:
+                    hass.data[DOMAIN]["devices"][unique_id] = {
                         "topic": topic,
                         "hostname": hostname,
                         "metric_type": metric_type,
@@ -43,13 +43,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
                     }
                     _LOGGER.info("Adding new sensor: %s", entity_id)
 
+                    # Déclencher la configuration des capteurs
+                    hass.async_create_task(
+                        hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+                    )
+
     async def mqtt_message_received(msg):
         """Handle new MQTT messages."""
         discover_devices(msg.topic, msg.payload, msg.qos)
 
     await mqtt.async_subscribe(hass, f"{topic_prefix}#", mqtt_message_received, qos=0)
-
-    # Configuration initiale des capteurs
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
 
     return True
