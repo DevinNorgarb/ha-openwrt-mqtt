@@ -14,4 +14,5 @@ DISCOVERY_TOPICS = [
     "interface-+/if_octets",
     "interface-+/if_errors",
     "interface-+/if_dropped",
+    "interface-+/if_packets",
 ]
