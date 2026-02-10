@@ -11,9 +11,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the OpenWrt MQTT sensors."""
     sensors = []
     for unique_id, data in hass.data[DOMAIN].items():
-        sensors.append(OpenWrtMQTTSensor(hass, data))
+        if unique_id not in hass.data.get(DOMAIN, {}).get("setup_entities", set()):
+            sensors.append(OpenWrtMQTTSensor(hass, data))
+            hass.data.setdefault(DOMAIN, {}).setdefault("setup_entities", set()).add(unique_id)
 
-    async_add_entities(sensors, True)
+    if sensors:
+        async_add_entities(sensors, True)
 
 class OpenWrtMQTTSensor(SensorEntity):
     """Representation of an OpenWrt MQTT sensor."""
