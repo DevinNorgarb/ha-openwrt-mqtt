@@ -9,8 +9,11 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the OpenWrt MQTT sensors."""
+    # Copie locale du dictionnaire pour éviter les modifications pendant l'itération
+    sensors_data = list(hass.data[DOMAIN].items())
     sensors = []
-    for unique_id, data in hass.data[DOMAIN].items():
+
+    for unique_id, data in sensors_data:
         if unique_id not in hass.data.get(DOMAIN, {}).get("setup_entities", set()):
             sensors.append(OpenWrtMQTTSensor(hass, data))
             hass.data.setdefault(DOMAIN, {}).setdefault("setup_entities", set()).add(unique_id)
