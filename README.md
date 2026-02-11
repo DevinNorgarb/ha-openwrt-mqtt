@@ -117,7 +117,40 @@ All network metrics include both cumulative counters and automatically calculate
 - Home Assistant with MQTT integration configured
 - MQTT broker accessible from Home Assistant
 
-#### Installation Steps
+#### Installation Methods
+
+Choose one of the following installation methods:
+
+##### Option 1: Install via HACS (Recommended)
+
+1. **Ensure HACS is installed:**
+   - If you don't have HACS yet, visit [https://hacs.xyz/](https://hacs.xyz/) for installation instructions
+
+2. **Add this repository to HACS:**
+   - Open HACS in Home Assistant
+   - Click on "Integrations"
+   - Click the three dots (⋮) in the top right corner
+   - Select "Custom repositories"
+   - Add the repository URL: `https://github.com/aldweb/ha-openwrt-mqtt`
+   - Select category: "Integration"
+   - Click "Add"
+
+3. **Install the integration:**
+   - Search for "OpenWrt MQTT Auto-Discovery" in HACS
+   - Click "Download"
+   - Restart Home Assistant
+
+4. **Configure the integration:**
+   - Go to Settings → Devices & Services
+   - Click "+ Add Integration"
+   - Search for "OpenWrt MQTT Auto-Discovery"
+   - Configure the MQTT topic prefix:
+     - Use `openwrt/+/` for multiple devices (+ is a wildcard for any hostname)
+     - Use `openwrt/hostname/` for a single specific device
+
+5. **Sensors will be automatically discovered** as MQTT messages arrive from your OpenWrt router.
+
+##### Option 2: Manual Installation
 
 1. **Download the integration:**
    
@@ -131,6 +164,8 @@ All network metrics include both cumulative counters and automatically calculate
        ├── manifest.json
        └── sensor.py
    ```
+
+   You can download the files from the [GitHub repository](https://github.com/aldweb/ha-openwrt-mqtt).
 
 2. **Restart Home Assistant**
 
