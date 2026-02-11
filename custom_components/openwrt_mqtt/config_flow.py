@@ -27,13 +27,6 @@ class OpenWrtMQTTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         vol.Required("topic_prefix", default=DEFAULT_TOPIC_PREFIX): str,
                     }
                 ),
-                description_placeholders={
-                    "topic_prefix_help": (
-                        "The MQTT topic prefix where OpenWrt devices publish their metrics. "
-                        "Use 'openwrt/+/' for multiple devices (+ is a wildcard for any hostname), "
-                        "or 'openwrt/myhostname/' for a single specific device."
-                    )
-                },
             )
 
         return self.async_create_entry(
@@ -70,12 +63,5 @@ class OpenWrtMQTTOptionsFlow(config_entries.OptionsFlow):
                     ): str,
                 }
             ),
-            description_placeholders={
-                "topic_prefix_help": (
-                    "The MQTT topic prefix where OpenWrt devices publish their metrics. "
-                    "Use 'openwrt/+/' for multiple devices (+ is a wildcard for any hostname), "
-                    "or 'openwrt/myhostname/' for a single specific device."
-                )
-            },
             errors=errors,
         )
