@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "OpenWrt MQTT Auto-Discovery",
+        "description": "Configure the MQTT topic prefix for OpenWrt device discovery.",
+        "data": {
+          "topic_prefix": "Topic Prefix"
+        },
+        "data_description": {
+          "topic_prefix": "The MQTT topic prefix where OpenWrt devices publish their metrics. Use 'openwrt/+/' for multiple devices (+ is a wildcard for any hostname), or 'openwrt/myhostname/' for a single specific device."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "OpenWrt MQTT Options",
+        "description": "Update the MQTT topic prefix configuration.",
+        "data": {
+          "topic_prefix": "Topic Prefix"
+        },
+        "data_description": {
+          "topic_prefix": "The MQTT topic prefix where OpenWrt devices publish their metrics. Use 'openwrt/+/' for multiple devices (+ is a wildcard for any hostname), or 'openwrt/myhostname/' for a single specific device."
+        }
+      }
+    }
+  }
+}
