@@ -69,24 +69,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
                 break
 
         if should_create_entity:
-            unique_id = f"openwrt_{hostname}_{metric_type.replace('/', '_').replace('-', '_')}"
-            entity_id = f"sensor.openwrt_{hostname}_{metric_type.replace('/', '_').replace('-', '_')}"
-
-            if unique_id not in hass.data[DOMAIN]["setup_entities"]:
-                hass.data[DOMAIN]["devices"][hostname]["entities"][unique_id] = {
+            # Générer les unique_id pour tous les capteurs qui seront créés à partir de ce topic
+            unique_ids = generate_unique_ids_for_metric(hostname, metric_type)
+            
+            # Vérifier si au moins un des capteurs n'a pas encore été créé
+            new_sensors_needed = False
+            for unique_id in unique_ids:
+                if unique_id not in hass.data[DOMAIN]["setup_entities"]:
+                    new_sensors_needed = True
+                    break
+            
+            if new_sensors_needed:
+                # Stocker les données du topic
+                base_unique_id = f"openwrt_{hostname}_{metric_type.replace('/', '_').replace('-', '_')}"
+                entity_id = f"sensor.{base_unique_id}"
+                
+                hass.data[DOMAIN]["devices"][hostname]["entities"][base_unique_id] = {
                     "topic": topic,
                     "metric_type": metric_type,
-                    "unique_id": unique_id,
+                    "unique_id": base_unique_id,
                     "entity_id": entity_id,
                     "hostname": hostname,
                 }
-                hass.data[DOMAIN]["setup_entities"].add(unique_id)
-                _LOGGER.info("Discovered new sensor: %s (topic: %s)", entity_id, topic)
                 
-                # Si le callback add_entities est disponible, créer l'entité immédiatement
+                # Marquer tous les unique_ids comme créés
+                for unique_id in unique_ids:
+                    hass.data[DOMAIN]["setup_entities"].add(unique_id)
+                
+                _LOGGER.info("Discovered new sensor(s) for topic %s (%d entities)", topic, len(unique_ids))
+                
+                # Si le callback add_entities est disponible, créer les entités immédiatement
                 if hass.data[DOMAIN]["add_entities_callback"] is not None:
                     from homeassistant.helpers.device_registry import DeviceInfo
-                    from .sensor import OpenWrtMQTTSensor
+                    from .sensor import create_sensors_for_metric
                     
                     device_info = hass.data[DOMAIN]["devices"][hostname]
                     device_info_obj = DeviceInfo(
@@ -97,10 +112,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
                         sw_version=device_info["sw_version"],
                     )
                     
-                    data = hass.data[DOMAIN]["devices"][hostname]["entities"][unique_id]
-                    new_sensor = OpenWrtMQTTSensor(hass, data, device_info_obj)
-                    hass.data[DOMAIN]["add_entities_callback"]([new_sensor], True)
-                    _LOGGER.info("Added sensor dynamically: %s", entity_id)
+                    data = hass.data[DOMAIN]["devices"][hostname]["entities"][base_unique_id]
+                    new_sensors = create_sensors_for_metric(hass, data, device_info_obj)
+                    hass.data[DOMAIN]["add_entities_callback"](new_sensors, True)
+                    _LOGGER.info("Added %d sensor(s) dynamically for %s", len(new_sensors), metric_type)
 
     async def mqtt_message_received(msg):
         """Handle new MQTT messages."""
@@ -114,6 +129,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
 
     return True
+
+def generate_unique_ids_for_metric(hostname, metric_type):
+    """Generate all unique_ids that will be created for a given metric type."""
+    unique_ids = []
+    
+    # Load : 3 capteurs
+    if metric_type == "load/load":
+        for load_type in ["1min", "5min", "15min"]:
+            unique_ids.append(f"openwrt_{hostname}_load_{load_type}")
+    
+    # Interfaces réseau : 2 capteurs (RX et TX)
+    elif metric_type.startswith("interface-") and metric_type.endswith(("/if_octets", "/if_packets", "/if_errors", "/if_dropped")):
+        base_id = metric_type.replace('/', '_').replace('-', '_')
+        for direction in ["rx", "tx"]:
+            unique_ids.append(f"openwrt_{hostname}_{base_id}_{direction}")
+    
+    # Autres : 1 seul capteur
+    else:
+        unique_ids.append(f"openwrt_{hostname}_{metric_type.replace('/', '_').replace('-', '_')}")
+    
+    return unique_ids
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
     """Unload a config entry."""
