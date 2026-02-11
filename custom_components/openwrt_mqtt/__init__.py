@@ -81,7 +81,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigType) -> bool:
             
             if new_sensors_needed:
                 # Stocker les données du topic
-                base_unique_id = f"openwrt_{hostname}_{metric_type.replace('/', '_').replace('-', '_')}"
+                base_unique_id = f"{hostname}_{metric_type.replace('/', '_').replace('-', '_')}"
                 entity_id = f"sensor.{base_unique_id}"
                 
                 hass.data[DOMAIN]["devices"][hostname]["entities"][base_unique_id] = {
@@ -137,17 +137,20 @@ def generate_unique_ids_for_metric(hostname, metric_type):
     # Load : 3 capteurs
     if metric_type == "load/load":
         for load_type in ["1min", "5min", "15min"]:
-            unique_ids.append(f"openwrt_{hostname}_load_{load_type}")
+            unique_ids.append(f"{hostname}_load_{load_type}")
     
-    # Interfaces réseau : 2 capteurs (RX et TX)
+    # Interfaces réseau : 4 capteurs par direction (RX total, RX rate, TX total, TX rate)
     elif metric_type.startswith("interface-") and metric_type.endswith(("/if_octets", "/if_packets", "/if_errors", "/if_dropped")):
         base_id = metric_type.replace('/', '_').replace('-', '_')
         for direction in ["rx", "tx"]:
-            unique_ids.append(f"openwrt_{hostname}_{base_id}_{direction}")
+            # Capteur total
+            unique_ids.append(f"{hostname}_{base_id}_{direction}")
+            # Capteur rate
+            unique_ids.append(f"{hostname}_{base_id}_{direction}_rate")
     
     # Autres : 1 seul capteur
     else:
-        unique_ids.append(f"openwrt_{hostname}_{metric_type.replace('/', '_').replace('-', '_')}")
+        unique_ids.append(f"{hostname}_{metric_type.replace('/', '_').replace('-', '_')}")
     
     return unique_ids
 

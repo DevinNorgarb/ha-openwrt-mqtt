@@ -1,6 +1,7 @@
 """Sensor platform for OpenWrt MQTT integration."""
 import logging
 import re
+from datetime import datetime, timedelta
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.const import UnitOfInformation, UnitOfDataRate
 from homeassistant.core import callback
@@ -55,12 +56,20 @@ def create_sensors_for_metric(hass, data, device_info):
             sensor_data["load_type"] = load_type
             sensors.append(OpenWrtMQTTSensor(hass, sensor_data, device_info))
     
-    # Interfaces réseau : créer 2 capteurs (RX et TX)
+    # Interfaces réseau : créer 2 capteurs total + 2 capteurs rate (RX et TX)
     elif metric_type.startswith("interface-") and metric_type.endswith(("/if_octets", "/if_packets", "/if_errors", "/if_dropped")):
         for direction in ["rx", "tx"]:
+            # Capteur total (compteur cumulatif)
             sensor_data = data.copy()
             sensor_data["direction"] = direction
+            sensor_data["sensor_type"] = "total"
             sensors.append(OpenWrtMQTTSensor(hass, sensor_data, device_info))
+            
+            # Capteur rate (débit calculé automatiquement)
+            rate_data = data.copy()
+            rate_data["direction"] = direction
+            rate_data["sensor_type"] = "rate"
+            sensors.append(OpenWrtMQTTRateSensor(hass, rate_data, device_info))
     
     # Autres capteurs : 1 seul capteur
     else:
@@ -85,14 +94,18 @@ class OpenWrtMQTTSensor(SensorEntity):
         # Générer unique_id en fonction du type
         if "load_type" in data:
             # Load : unique_id inclut le type (1min, 5min, 15min)
-            self._attr_unique_id = f"openwrt_{hostname}_load_{data['load_type']}"
+            self._attr_unique_id = f"{hostname}_load_{data['load_type']}"
         elif "direction" in data:
-            # Interface : unique_id inclut la direction (rx ou tx)
+            # Interface : unique_id inclut la direction (rx ou tx) et le type (total ou rate)
             base_id = metric_type.replace('/', '_').replace('-', '_')
-            self._attr_unique_id = f"openwrt_{hostname}_{base_id}_{data['direction']}"
+            sensor_type = data.get("sensor_type", "total")
+            if sensor_type == "rate":
+                self._attr_unique_id = f"{hostname}_{base_id}_{data['direction']}_rate"
+            else:
+                self._attr_unique_id = f"{hostname}_{base_id}_{data['direction']}"
         else:
-            # Autres : unique_id standard
-            self._attr_unique_id = data["unique_id"]
+            # Autres : unique_id standard sans préfixe openwrt_
+            self._attr_unique_id = f"{hostname}_{metric_type.replace('/', '_').replace('-', '_')}"
         
         # Nom du capteur (préfixé avec hostname)
         self._attr_name = self._generate_name(hostname, metric_type)
@@ -120,15 +133,28 @@ class OpenWrtMQTTSensor(SensorEntity):
             interface = parts[0].replace("interface-", "")
             metric = parts[1] if len(parts) > 1 else ""
             direction = self._data.get("direction", "").upper()
+            sensor_type = self._data.get("sensor_type", "total")
             
             if metric == "if_octets":
-                return f"{hostname} {interface} {direction}"
+                if sensor_type == "rate":
+                    return f"{hostname} {interface} {direction} Rate"
+                else:
+                    return f"{hostname} {interface} {direction}"
             elif metric == "if_packets":
-                return f"{hostname} {interface} Packets {direction}"
+                if sensor_type == "rate":
+                    return f"{hostname} {interface} Packets {direction} Rate"
+                else:
+                    return f"{hostname} {interface} Packets {direction}"
             elif metric == "if_errors":
-                return f"{hostname} {interface} Errors {direction}"
+                if sensor_type == "rate":
+                    return f"{hostname} {interface} Errors {direction} Rate"
+                else:
+                    return f"{hostname} {interface} Errors {direction}"
             elif metric == "if_dropped":
-                return f"{hostname} {interface} Dropped {direction}"
+                if sensor_type == "rate":
+                    return f"{hostname} {interface} Dropped {direction} Rate"
+                else:
+                    return f"{hostname} {interface} Dropped {direction}"
         
         # Mémoire
         elif metric_type.startswith("memory/"):
@@ -167,8 +193,16 @@ class OpenWrtMQTTSensor(SensorEntity):
         
         # Octets réseau
         elif "if_octets" in metric_type:
-            self._attr_native_unit_of_measurement = UnitOfInformation.BYTES
-            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+            sensor_type = self._data.get("sensor_type", "total")
+            
+            if sensor_type == "rate":
+                # Capteur rate : débit en bytes/s
+                self._attr_native_unit_of_measurement = "B/s"
+                self._attr_state_class = SensorStateClass.MEASUREMENT
+            else:
+                # Capteur total : compteur cumulatif
+                self._attr_native_unit_of_measurement = UnitOfInformation.BYTES
+                self._attr_state_class = SensorStateClass.TOTAL_INCREASING
             
             direction = self._data.get("direction", "rx")
             if direction == "tx":
@@ -178,20 +212,38 @@ class OpenWrtMQTTSensor(SensorEntity):
         
         # Paquets réseau
         elif "if_packets" in metric_type:
-            self._attr_native_unit_of_measurement = "packets"
-            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+            sensor_type = self._data.get("sensor_type", "total")
+            
+            if sensor_type == "rate":
+                self._attr_native_unit_of_measurement = "packets/s"
+                self._attr_state_class = SensorStateClass.MEASUREMENT
+            else:
+                self._attr_native_unit_of_measurement = "packets"
+                self._attr_state_class = SensorStateClass.TOTAL_INCREASING
             self._attr_icon = "mdi:lan-connect"
         
         # Erreurs réseau
         elif "if_errors" in metric_type:
-            self._attr_native_unit_of_measurement = "packets"
-            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+            sensor_type = self._data.get("sensor_type", "total")
+            
+            if sensor_type == "rate":
+                self._attr_native_unit_of_measurement = "errors/s"
+                self._attr_state_class = SensorStateClass.MEASUREMENT
+            else:
+                self._attr_native_unit_of_measurement = "packets"
+                self._attr_state_class = SensorStateClass.TOTAL_INCREASING
             self._attr_icon = "mdi:lan-disconnect"
         
         # Paquets dropped
         elif "if_dropped" in metric_type:
-            self._attr_native_unit_of_measurement = "packets"
-            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+            sensor_type = self._data.get("sensor_type", "total")
+            
+            if sensor_type == "rate":
+                self._attr_native_unit_of_measurement = "packets/s"
+                self._attr_state_class = SensorStateClass.MEASUREMENT
+            else:
+                self._attr_native_unit_of_measurement = "packets"
+                self._attr_state_class = SensorStateClass.TOTAL_INCREASING
             self._attr_icon = "mdi:lan-pending"
         
         # Uptime
@@ -292,3 +344,166 @@ class OpenWrtMQTTSensor(SensorEntity):
     def extra_state_attributes(self):
         """Return additional attributes."""
         return self._extra_attributes if self._extra_attributes else None
+
+
+class OpenWrtMQTTRateSensor(SensorEntity):
+    """Representation of an OpenWrt MQTT rate sensor (calculates derivative automatically)."""
+
+    def __init__(self, hass, data, device_info):
+        """Initialize the rate sensor."""
+        self.hass = hass
+        self._data = data
+        self._device_info = device_info
+        self._state = None
+        self._last_value = None
+        self._last_update = None
+        
+        metric_type = data["metric_type"]
+        hostname = data.get("hostname", "unknown")
+        
+        # Générer unique_id pour le capteur rate
+        base_id = metric_type.replace('/', '_').replace('-', '_')
+        self._attr_unique_id = f"{hostname}_{base_id}_{data['direction']}_rate"
+        
+        # Nom du capteur (préfixé avec hostname)
+        self._attr_name = self._generate_name(hostname, metric_type)
+        
+        # Configuration des unités et device class
+        self._configure_sensor_properties(metric_type)
+
+    def _generate_name(self, hostname, metric_type):
+        """Generate a friendly name from metric type, prefixed with hostname."""
+        parts = metric_type.split('/')
+        
+        # Interfaces réseau
+        if metric_type.startswith("interface-"):
+            interface = parts[0].replace("interface-", "")
+            metric = parts[1] if len(parts) > 1 else ""
+            direction = self._data.get("direction", "").upper()
+            
+            if metric == "if_octets":
+                return f"{hostname} {interface} {direction} Rate"
+            elif metric == "if_packets":
+                return f"{hostname} {interface} Packets {direction} Rate"
+            elif metric == "if_errors":
+                return f"{hostname} {interface} Errors {direction} Rate"
+            elif metric == "if_dropped":
+                return f"{hostname} {interface} Dropped {direction} Rate"
+        
+        # Par défaut
+        return f"{hostname} {metric_type.replace('/', ' ').replace('-', ' ').title()} Rate"
+
+    def _configure_sensor_properties(self, metric_type):
+        """Configure sensor properties based on metric type."""
+        # Valeurs par défaut
+        self._attr_native_unit_of_measurement = None
+        self._attr_device_class = None
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_suggested_display_precision = None
+        self._attr_icon = None
+        
+        # Octets réseau
+        if "if_octets" in metric_type:
+            self._attr_native_unit_of_measurement = "B/s"
+            
+            direction = self._data.get("direction", "rx")
+            if direction == "tx":
+                self._attr_icon = "mdi:upload-network"
+            else:
+                self._attr_icon = "mdi:download-network"
+        
+        # Paquets réseau
+        elif "if_packets" in metric_type:
+            self._attr_native_unit_of_measurement = "packets/s"
+            self._attr_icon = "mdi:lan-connect"
+        
+        # Erreurs réseau
+        elif "if_errors" in metric_type:
+            self._attr_native_unit_of_measurement = "errors/s"
+            self._attr_icon = "mdi:lan-disconnect"
+        
+        # Paquets dropped
+        elif "if_dropped" in metric_type:
+            self._attr_native_unit_of_measurement = "packets/s"
+            self._attr_icon = "mdi:lan-pending"
+
+    @property
+    def device_info(self):
+        """Return the device info."""
+        return self._device_info
+
+    async def async_added_to_hass(self):
+        """Subscribe to MQTT events."""
+        @callback
+        def message_received(message):
+            """Handle new MQTT messages."""
+            payload = message.payload
+            parsed_value = self._parse_payload(payload)
+            
+            if parsed_value is not None:
+                now = datetime.now()
+                
+                # Si c'est la première valeur, juste la stocker
+                if self._last_value is None or self._last_update is None:
+                    self._last_value = parsed_value
+                    self._last_update = now
+                    # Pas de state pour l'instant
+                    return
+                
+                # Calculer le delta de temps en secondes
+                time_delta = (now - self._last_update).total_seconds()
+                
+                # Éviter les divisions par zéro
+                if time_delta <= 0:
+                    return
+                
+                # Calculer le delta de valeur
+                value_delta = parsed_value - self._last_value
+                
+                # Si le compteur a été réinitialisé (redémarrage du routeur), ignorer
+                if value_delta < 0:
+                    _LOGGER.warning("Counter reset detected for %s, skipping rate calculation", self._attr_name)
+                    self._last_value = parsed_value
+                    self._last_update = now
+                    return
+                
+                # Calculer le rate (débit par seconde)
+                rate = value_delta / time_delta
+                
+                # Mettre à jour l'état
+                self._state = round(rate, 2)
+                self._last_value = parsed_value
+                self._last_update = now
+                
+                self.async_write_ha_state()
+            else:
+                _LOGGER.warning("Could not parse payload '%s' for %s", payload, self._attr_name)
+
+        await mqtt.async_subscribe(self.hass, self._data["topic"], message_received, qos=0)
+
+    def _parse_payload(self, payload):
+        """Parse MQTT payload based on metric type."""
+        metric_type = self._data["metric_type"]
+        
+        try:
+            # Interfaces réseau : extraire RX ou TX selon la direction
+            if metric_type.startswith("interface-"):
+                match = re.search(r'rx:([\d]+),tx:([\d]+)', payload)
+                if match:
+                    rx_value = int(match.group(1))
+                    tx_value = int(match.group(2))
+                    
+                    direction = self._data.get("direction", "rx")
+                    if direction == "rx":
+                        return rx_value
+                    elif direction == "tx":
+                        return tx_value
+                    
+        except (ValueError, AttributeError) as e:
+            _LOGGER.error("Error parsing payload '%s' for %s: %s", payload, metric_type, e)
+            return None
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor."""
+        return self._state
