@@ -1,6 +1,6 @@
 # OpenWrt MQTT Auto-Discovery for Home Assistant
 
-<img src="images/openwrt-one-router.png" align="left" width="300" style="margin-right: 20px; margin-bottom: 20px;">
+<img src="https://raw.githubusercontent.com/aldweb/ha-openwrt-mqtt/master/images/openwrt-one-router.png" align="left" width="300" style="margin-right: 20px; margin-bottom: 20px;">
 A comprehensive monitoring solution that brings your OpenWrt router metrics into Home Assistant through MQTT auto-discovery.
 <br clear="all" />
 
