@@ -70,21 +70,20 @@ All network metrics include both cumulative counters and automatically calculate
    ssh root@<your-router-ip>
    ```
 
-2. **Download and run the setup script:**
+2. **Download the setup script:**
    ```bash
    wget https://raw.githubusercontent.com/aldweb/ha-openwrt-mqtt/main/setup_metrics.sh -O /tmp/setup_metrics.sh
    chmod +x /tmp/setup_metrics.sh
-   /tmp/setup_metrics.sh
    ```
 
 3. **Configure MQTT settings:**
    
-   Edit the generated script to add your MQTT broker details:
+   Before running the setup script, edit it to configure your MQTT broker details:
    ```bash
-   vi /usr/bin/publish_metrics.sh
+   vi /tmp/setup_metrics.sh
    ```
    
-   Update the following variables:
+   Update the following variables in the script:
    ```bash
    MQTT_BROKER="<mqtt_broker_ip>"        # Your MQTT broker IP address
    MQTT_PORT="<mqtt_port>"                # MQTT port (usually 1883)
@@ -93,15 +92,22 @@ All network metrics include both cumulative counters and automatically calculate
    ```
    
    Save and exit (`:wq` in vi).
+   
+   **Alternative**: You can also run the setup script first and then edit `/usr/bin/publish_metrics.sh` afterwards to configure these settings.
 
-4. **Test the script manually:**
+4. **Run the setup script:**
+   ```bash
+   /tmp/setup_metrics.sh
+   ```
+
+5. **Test the script manually:**
    ```bash
    /usr/bin/publish_metrics.sh
    ```
    
    Check your MQTT broker to verify that messages are being published under the `openwrt/<hostname>/` topic.
 
-5. **The script is automatically scheduled to run every 5 minutes via cron.**
+6. **The script is automatically scheduled to run every 5 minutes via cron.**
 
 #### What the Setup Script Does
 
