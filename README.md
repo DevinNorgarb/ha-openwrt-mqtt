@@ -37,15 +37,29 @@ The integration monitors the following metrics from your OpenWrt router:
   - OpenWrt version
   - Uptime
 
-- **CPU Load**
-  - 1-minute load average
-  - 5-minute load average
-  - 15-minute load average
+- **CPU**
+  - Load average (1-minute, 5-minute, 15-minute)
+  - Load percentage (based on number of cores)
 
 - **Memory Usage**
   - Free memory
   - Cached memory
   - Used memory
+
+- **Disk Space**
+  - Total disk space
+  - Used disk space
+  - Free disk space
+  - Usage percentage
+
+- **Temporary Storage (tmpfs)**
+  - Total tmpfs space
+  - Used tmpfs space
+  - Free tmpfs space
+  - Usage percentage
+
+- **Network**
+  - Active connections (connection tracking)
 
 - **Network Interfaces** (for each interface)
   - RX/TX bytes (total and rate)
@@ -206,16 +220,24 @@ Metrics are published to the following topic structure:
 
 Examples:
 - `openwrt/myrouter/system/hostname`
-- `openwrt/myrouter/load/load`
+- `openwrt/myrouter/cpu/load`
+- `openwrt/myrouter/cpu/load_percent`
 - `openwrt/myrouter/memory/memory-free`
+- `openwrt/myrouter/disk/total`
+- `openwrt/myrouter/disk_tmp/used`
+- `openwrt/myrouter/conntrack/total`
 - `openwrt/myrouter/interface-eth0/if_octets`
 
 ## Sensor Naming
 
 All sensors are automatically named with the hostname prefix for easy identification:
 
-- `<hostname> Load 1min`
-- `<hostname> Memory Free`
+- `<hostname> CPU Load 1min`, `<hostname> CPU Load 5min`, `<hostname> CPU Load 15min`
+- `<hostname> CPU Load %`
+- `<hostname> Memory Free`, `<hostname> Memory Used`, `<hostname> Memory Cached`
+- `<hostname> Disk Total`, `<hostname> Disk Used`, `<hostname> Disk Free`, `<hostname> Disk Usage`
+- `<hostname> Temp Disk Total`, `<hostname> Temp Disk Used`, `<hostname> Temp Disk Free`, `<hostname> Temp Disk Usage`
+- `<hostname> Active Connections`
 - `<hostname> eth0 RX` (bytes total)
 - `<hostname> eth0 RX Rate` (bytes/s)
 - `<hostname> System Uptime`
@@ -224,8 +246,12 @@ All sensors are automatically named with the hostname prefix for easy identifica
 
 The OpenWrt script publishes data in the following formats:
 
-- **Load**: `load:1.23,4.56,7.89` (1min, 5min, 15min)
+- **CPU Load**: `load:1.23,4.56,7.89` (1min, 5min, 15min)
+- **CPU Load %**: `value:75` (percentage)
 - **Memory**: `value:123456` (in KB)
+- **Disk**: `value:123456` (in KB for space metrics, percentage for usage)
+- **Disk Tmp**: `value:123456` (in KB for space metrics, percentage for usage)
+- **Connections**: `value:1234` (number of active connections)
 - **Network**: `rx:123456,tx:789012` (in bytes, packets, errors, or dropped)
 - **System info**: Plain text values
 - **Uptime**: Seconds as integer
@@ -303,16 +329,16 @@ The OpenWrt script can be easily extended to monitor many other useful metrics. 
 
 **Hardware & Temperature**
 - CPU / SoC temperature
-- Flash overlay storage usage
+- ~~Flash overlay storage usage~~ (already implemented)
 
 **Network & Connectivity**
 - WAN IP address
 - Internet connection status (ping test)
 - Wi-Fi statistics (connected clients, signal strength, channel utilization)
-- Active connections (NAT tracking table)
+- ~~Active connections (NAT tracking table)~~ (already implemented)
 
 **System Performance**
-- Real CPU usage percentage (not just load average)
+- ~~Real CPU usage percentage (not just load average)~~ (already implemented)
 - Per-core CPU usage
 - Disk I/O statistics
 
