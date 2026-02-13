@@ -54,7 +54,7 @@ publish_metric() {
 MODEL=$(cat /tmp/sysinfo/model 2>/dev/null || echo "Unknown Model")
 VERSION=$(cat /etc/openwrt_version 2>/dev/null || echo "Unknown Version")
 TARGET_PLATFORM=$(cat /tmp/sysinfo/board_name 2>/dev/null || echo "Unknown Platform")
-ARCHITECTURE=$(cat /proc/cpuinfo | grep "model name" | head -n 1 | cut -d ':' -f 2 | sed 's/^[ \t]*//' 2>/dev/null || cat /proc/cpuinfo | grep "Processor" | head -n 1 | cut -d ':' -f 2 | sed 's/^[ \t]*//' 2>/dev/null || echo "Unknown Architecture")
+ARCHITECTURE=$(uname -m)
 UPTIME=$(cut -d. -f1 /proc/uptime)
 
 publish_metric "system/hostname" "$HOSTNAME"
