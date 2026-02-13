@@ -329,16 +329,13 @@ The OpenWrt script can be easily extended to monitor many other useful metrics. 
 
 **Hardware & Temperature**
 - CPU / SoC temperature
-- ~~Flash overlay storage usage~~ (already implemented)
 
 **Network & Connectivity**
 - WAN IP address
 - Internet connection status (ping test)
 - Wi-Fi statistics (connected clients, signal strength, channel utilization)
-- ~~Active connections (NAT tracking table)~~ (already implemented)
 
 **System Performance**
-- ~~Real CPU usage percentage (not just load average)~~ (already implemented)
 - Per-core CPU usage
 - Disk I/O statistics
 
