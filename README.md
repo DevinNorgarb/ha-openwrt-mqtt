@@ -185,6 +185,9 @@ Choose one of the following installation methods:
        ├── const.py
        ├── manifest.json
        └── sensor.py
+       └── strings.json
+       └── translations/
+          └── en.json
    ```
 
    You can download the files from the [GitHub repository](https://github.com/aldweb/ha-openwrt-mqtt).
