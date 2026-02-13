@@ -49,8 +49,8 @@ def create_sensors_for_metric(hass, data, device_info):
     sensors = []
     metric_type = data["metric_type"]
     
-    # Load: create 3 separate sensors
-    if metric_type == "load/load":
+    # CPU Load: create 3 separate sensors
+    if metric_type == "cpu/load":
         for load_type in ["1min", "5min", "15min"]:
             sensor_data = data.copy()
             sensor_data["load_type"] = load_type
@@ -93,8 +93,8 @@ class OpenWrtMQTTSensor(SensorEntity):
         
         # Generate unique_id based on type
         if "load_type" in data:
-            # Load: unique_id includes the type (1min, 5min, 15min)
-            self._attr_unique_id = f"{hostname}_load_{data['load_type']}"
+            # CPU Load: unique_id includes the type (1min, 5min, 15min)
+            self._attr_unique_id = f"{hostname}_cpu_load_{data['load_type']}"
         elif "direction" in data:
             # Interface: unique_id includes direction (rx or tx) and type (total or rate)
             base_id = metric_type.replace('/', '_').replace('-', '_')
@@ -117,16 +117,48 @@ class OpenWrtMQTTSensor(SensorEntity):
         """Generate a friendly name from metric type, prefixed with hostname."""
         parts = metric_type.split('/')
         
-        # Load: specific names
-        if metric_type == "load/load":
+        # CPU Load: specific names
+        if metric_type == "cpu/load":
             if "load_type" in self._data:
                 load_type = self._data["load_type"]
                 if load_type == "1min":
-                    return f"{hostname} Load 1min"
+                    return f"{hostname} CPU Load 1min"
                 elif load_type == "5min":
-                    return f"{hostname} Load 5min"
+                    return f"{hostname} CPU Load 5min"
                 elif load_type == "15min":
-                    return f"{hostname} Load 15min"
+                    return f"{hostname} CPU Load 15min"
+        
+        # CPU load percentage
+        elif metric_type == "cpu/load_percent":
+            return f"{hostname} CPU Load %"
+        
+        # Disk space
+        elif metric_type.startswith("disk/"):
+            disk_type = parts[1]
+            if disk_type == "total":
+                return f"{hostname} Disk Total"
+            elif disk_type == "used":
+                return f"{hostname} Disk Used"
+            elif disk_type == "free":
+                return f"{hostname} Disk Free"
+            elif disk_type == "percent":
+                return f"{hostname} Disk Usage"
+        
+        # Temp disk space (tmpfs)
+        elif metric_type.startswith("disk_tmp/"):
+            disk_type = parts[1]
+            if disk_type == "total":
+                return f"{hostname} Temp Disk Total"
+            elif disk_type == "used":
+                return f"{hostname} Temp Disk Used"
+            elif disk_type == "free":
+                return f"{hostname} Temp Disk Free"
+            elif disk_type == "percent":
+                return f"{hostname} Temp Disk Usage"
+        
+        # Connection tracking
+        elif metric_type == "conntrack/total":
+            return f"{hostname} Active Connections"
         
         # Network interfaces
         if metric_type.startswith("interface-"):
@@ -178,11 +210,18 @@ class OpenWrtMQTTSensor(SensorEntity):
         self._attr_suggested_display_precision = None
         self._attr_icon = None
         
-        # Load
-        if metric_type == "load/load":
+        # CPU Load
+        if metric_type == "cpu/load":
             self._attr_icon = "mdi:gauge"
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_suggested_display_precision = 2
+        
+        # CPU load percentage
+        elif metric_type == "cpu/load_percent":
+            self._attr_native_unit_of_measurement = "%"
+            self._attr_icon = "mdi:chip"
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+            self._attr_suggested_display_precision = 0
         
         # Memory in MB (converted from KiB)
         elif "memory" in metric_type:
@@ -190,6 +229,26 @@ class OpenWrtMQTTSensor(SensorEntity):
             self._attr_device_class = SensorDeviceClass.DATA_SIZE
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_icon = "mdi:memory"
+        
+        # Disk space in MB (converted from KiB)
+        elif metric_type.startswith("disk/") or metric_type.startswith("disk_tmp/"):
+            if "percent" in metric_type:
+                self._attr_native_unit_of_measurement = "%"
+                self._attr_icon = "mdi:harddisk"
+                self._attr_state_class = SensorStateClass.MEASUREMENT
+            else:
+                self._attr_native_unit_of_measurement = UnitOfInformation.MEGABYTES
+                self._attr_device_class = SensorDeviceClass.DATA_SIZE
+                self._attr_state_class = SensorStateClass.MEASUREMENT
+                if "tmp" in metric_type:
+                    self._attr_icon = "mdi:folder-clock"
+                else:
+                    self._attr_icon = "mdi:harddisk"
+        
+        # Connection tracking
+        elif metric_type == "conntrack/total":
+            self._attr_icon = "mdi:connection"
+            self._attr_state_class = SensorStateClass.MEASUREMENT
         
         # Network bytes
         elif "if_octets" in metric_type:
@@ -270,8 +329,8 @@ class OpenWrtMQTTSensor(SensorEntity):
         metric_type = self._data["metric_type"]
         
         try:
-            # Load: format is "load:1.23,4.56,7.89"
-            if metric_type == "load/load":
+            # CPU Load: format is "load:1.23,4.56,7.89"
+            if metric_type == "cpu/load":
                 match = re.search(r'load:([\d.]+),([\d.]+),([\d.]+)', payload)
                 if match:
                     load_1min = float(match.group(1))
@@ -287,7 +346,13 @@ class OpenWrtMQTTSensor(SensorEntity):
                     elif load_type == "15min":
                         return load_15min
             
-            # Memory: format is "value:12345"
+            # CPU, Memory, Disk, Conntrack: format is "value:12345"
+            elif metric_type == "cpu/load_percent" or metric_type == "conntrack/total":
+                match = re.search(r'value:([\d]+)', payload)
+                if match:
+                    return int(match.group(1))
+            
+            # Memory: format is "value:12345" (convert KiB to MiB)
             elif "memory" in metric_type:
                 match = re.search(r'value:([\d]+)', payload)
                 if match:
@@ -295,6 +360,19 @@ class OpenWrtMQTTSensor(SensorEntity):
                     # Convert KiB to MiB
                     value_mb = value_kb / 1024
                     return round(value_mb, 2)
+            
+            # Disk and Disk_tmp: format is "value:12345"
+            elif metric_type.startswith("disk/") or metric_type.startswith("disk_tmp/"):
+                match = re.search(r'value:([\d]+)', payload)
+                if match:
+                    value = int(match.group(1))
+                    # If it's a percentage, return as is
+                    if "percent" in metric_type:
+                        return value
+                    # Otherwise convert KiB to MiB
+                    else:
+                        value_mb = value / 1024
+                        return round(value_mb, 2)
             
             # Network interfaces: format is "rx:123456,tx:789012"
             elif metric_type.startswith("interface-"):
@@ -305,6 +383,29 @@ class OpenWrtMQTTSensor(SensorEntity):
                     
                     # Return the value corresponding to the direction
                     direction = self._data.get("direction", "rx")
+                    if direction == "rx":
+                        return rx_value
+                    elif direction == "tx":
+                        return tx_value
+            
+            # System information
+            elif metric_type.startswith("system/"):
+                if metric_type == "system/uptime":
+                    return int(payload)
+                else:
+                    # Raw text
+                    return payload
+            
+            # Otherwise, try to parse as a number
+            else:
+                try:
+                    return float(payload)
+                except ValueError:
+                    return payload
+                    
+        except (ValueError, AttributeError) as e:
+            _LOGGER.error("Error parsing payload '%s' for %s: %s", payload, metric_type, e)
+            return None
                     if direction == "rx":
                         return rx_value
                     elif direction == "tx":

@@ -134,10 +134,10 @@ def generate_unique_ids_for_metric(hostname, metric_type):
     """Generate all unique_ids that will be created for a given metric type."""
     unique_ids = []
     
-    # Load: 3 sensors
-    if metric_type == "load/load":
+    # CPU Load: 3 sensors
+    if metric_type == "cpu/load":
         for load_type in ["1min", "5min", "15min"]:
-            unique_ids.append(f"{hostname}_load_{load_type}")
+            unique_ids.append(f"{hostname}_cpu_load_{load_type}")
     
     # Network interfaces: 4 sensors per direction (RX total, RX rate, TX total, TX rate)
     elif metric_type.startswith("interface-") and metric_type.endswith(("/if_octets", "/if_packets", "/if_errors", "/if_dropped")):

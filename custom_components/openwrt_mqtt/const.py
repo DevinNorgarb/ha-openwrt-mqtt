@@ -1,10 +1,20 @@
 DOMAIN = "openwrt_mqtt"
 DEFAULT_TOPIC_PREFIX = "openwrt/+/"
 DISCOVERY_TOPICS = [
-    "load/load",
+    "cpu/load",
+    "cpu/load_percent",
     "memory/memory-free",
     "memory/memory-cached",
     "memory/memory-used",
+    "disk/total",
+    "disk/used",
+    "disk/free",
+    "disk/percent",
+    "disk_tmp/total",
+    "disk_tmp/used",
+    "disk_tmp/free",
+    "disk_tmp/percent",
+    "conntrack/total",
     "system/hostname",
     "system/model",
     "system/target_platform",
