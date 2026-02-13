@@ -85,9 +85,18 @@ publish_metric "cpu/load_percent" "value:$CPU_LOAD_PERCENT"
 MEMORY_FREE=$(awk '/MemFree/ {print $2}' /proc/meminfo)
 MEMORY_CACHED=$(awk '/Cached/ {print $2}' /proc/meminfo | head -n 1)
 MEMORY_USED=$(awk '/MemTotal/ {total=$2} /MemFree/ {free=$2} /Buffers/ {buffers=$2} /Cached/ {cached=$2} END {print total-free-buffers-cached}' /proc/meminfo)
+# Calculate memory total and usage percentage
+MEMORY_TOTAL=$((MEMORY_USED + MEMORY_CACHED + MEMORY_FREE))
+if [ $MEMORY_TOTAL -gt 0 ]; then
+    MEMORY_USAGE_PERCENT=$((100 * (MEMORY_USED + MEMORY_CACHED) / MEMORY_TOTAL))
+else
+    MEMORY_USAGE_PERCENT=0
+fi
+
 publish_metric "memory/memory-free" "value:$MEMORY_FREE"
 publish_metric "memory/memory-cached" "value:$MEMORY_CACHED"
 publish_metric "memory/memory-used" "value:$MEMORY_USED"
+publish_metric "memory/memory-usage-percent" "value:$MEMORY_USAGE_PERCENT"
 
 # Publish disk usage (total for all partitions combined)
 # On OpenWRT with overlay, we need to use only the overlay partition stats
