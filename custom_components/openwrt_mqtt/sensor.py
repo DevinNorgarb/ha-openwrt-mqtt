@@ -406,29 +406,6 @@ class OpenWrtMQTTSensor(SensorEntity):
         except (ValueError, AttributeError) as e:
             _LOGGER.error("Error parsing payload '%s' for %s: %s", payload, metric_type, e)
             return None
-                    if direction == "rx":
-                        return rx_value
-                    elif direction == "tx":
-                        return tx_value
-            
-            # System information
-            elif metric_type.startswith("system/"):
-                if metric_type == "system/uptime":
-                    return int(payload)
-                else:
-                    # Raw text
-                    return payload
-            
-            # Otherwise, try to parse as a number
-            else:
-                try:
-                    return float(payload)
-                except ValueError:
-                    return payload
-                    
-        except (ValueError, AttributeError) as e:
-            _LOGGER.error("Error parsing payload '%s' for %s: %s", payload, metric_type, e)
-            return None
 
     @property
     def native_value(self):
