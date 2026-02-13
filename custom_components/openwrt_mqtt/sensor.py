@@ -191,7 +191,10 @@ class OpenWrtMQTTSensor(SensorEntity):
         # Memory
         elif metric_type.startswith("memory/"):
             mem_type = parts[1].replace("memory-", "")
-            return f"{hostname} Memory {mem_type.title()}"
+            if mem_type == "usage-percent":
+                return f"{hostname} Memory Usage"
+            else:
+                return f"{hostname} Memory {mem_type.title()}"
         
         # System
         elif metric_type.startswith("system/"):
@@ -223,19 +226,27 @@ class OpenWrtMQTTSensor(SensorEntity):
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_suggested_display_precision = 0
         
-        # Memory in MB (converted from KiB)
+        # Memory in MB (converted from KiB) or percentage
         elif "memory" in metric_type:
-            self._attr_native_unit_of_measurement = UnitOfInformation.MEGABYTES
-            self._attr_device_class = SensorDeviceClass.DATA_SIZE
-            self._attr_state_class = SensorStateClass.MEASUREMENT
-            self._attr_icon = "mdi:memory"
+            if "percent" in metric_type:
+                self._attr_native_unit_of_measurement = "%"
+                self._attr_state_class = SensorStateClass.MEASUREMENT
+                self._attr_icon = "mdi:memory"
+            else:
+                self._attr_native_unit_of_measurement = UnitOfInformation.MEGABYTES
+                self._attr_device_class = SensorDeviceClass.DATA_SIZE
+                self._attr_state_class = SensorStateClass.MEASUREMENT
+                self._attr_icon = "mdi:memory"
         
         # Disk space in MB (converted from KiB)
         elif metric_type.startswith("disk/") or metric_type.startswith("disk_tmp/"):
             if "percent" in metric_type:
                 self._attr_native_unit_of_measurement = "%"
-                self._attr_icon = "mdi:harddisk"
                 self._attr_state_class = SensorStateClass.MEASUREMENT
+                if "tmp" in metric_type:
+                    self._attr_icon = "mdi:folder-clock"
+                else:
+                    self._attr_icon = "mdi:harddisk"
             else:
                 self._attr_native_unit_of_measurement = UnitOfInformation.MEGABYTES
                 self._attr_device_class = SensorDeviceClass.DATA_SIZE
@@ -352,14 +363,18 @@ class OpenWrtMQTTSensor(SensorEntity):
                 if match:
                     return int(match.group(1))
             
-            # Memory: format is "value:12345" (convert KiB to MiB)
+            # Memory: format is "value:12345" (convert KiB to MiB, or keep percentage as is)
             elif "memory" in metric_type:
                 match = re.search(r'value:([\d]+)', payload)
                 if match:
-                    value_kb = int(match.group(1))
-                    # Convert KiB to MiB
-                    value_mb = value_kb / 1024
-                    return round(value_mb, 2)
+                    value = int(match.group(1))
+                    # If it's a percentage, return as is
+                    if "percent" in metric_type:
+                        return value
+                    # Otherwise convert KiB to MiB
+                    else:
+                        value_mb = value / 1024
+                        return round(value_mb, 2)
             
             # Disk and Disk_tmp: format is "value:12345"
             elif metric_type.startswith("disk/") or metric_type.startswith("disk_tmp/"):

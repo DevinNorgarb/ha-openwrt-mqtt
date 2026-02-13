@@ -6,6 +6,7 @@ DISCOVERY_TOPICS = [
     "memory/memory-free",
     "memory/memory-cached",
     "memory/memory-used",
+    "memory/memory-usage-percent",
     "disk/total",
     "disk/used",
     "disk/free",
