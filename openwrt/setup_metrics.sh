@@ -66,7 +66,20 @@ publish_metric "system/uptime" "$UPTIME"
 
 # Publish CPU load
 LOAD_AVG=$(cat /proc/loadavg | awk '{print $1","$2","$3}')
-publish_metric "load/load" "load:$LOAD_AVG"
+publish_metric "cpu/load" "load:$LOAD_AVG"
+
+# Publish CPU load percentage (based on load average and number of cores)
+# Get the number of CPU cores
+CPU_CORES=$(grep -c "^processor" /proc/cpuinfo)
+
+# Get 1-minute load average
+LOAD_1MIN=$(cat /proc/loadavg | awk '{print $1}')
+
+# Calculate CPU load percentage (load average / number of cores * 100)
+# Using awk for floating point arithmetic
+CPU_LOAD_PERCENT=$(awk -v load="$LOAD_1MIN" -v cores="$CPU_CORES" 'BEGIN {printf "%.0f", (load / cores) * 100}')
+
+publish_metric "cpu/load_percent" "value:$CPU_LOAD_PERCENT"
 
 # Publish memory usage (in KB)
 MEMORY_FREE=$(awk '/MemFree/ {print $2}' /proc/meminfo)
@@ -75,6 +88,59 @@ MEMORY_USED=$(awk '/MemTotal/ {total=$2} /MemFree/ {free=$2} /Buffers/ {buffers=
 publish_metric "memory/memory-free" "value:$MEMORY_FREE"
 publish_metric "memory/memory-cached" "value:$MEMORY_CACHED"
 publish_metric "memory/memory-used" "value:$MEMORY_USED"
+
+# Publish disk usage (total for all partitions combined)
+# On OpenWRT with overlay, we need to use only the overlay partition stats
+# Check if overlay exists
+if df -k | grep -q ":/overlay"; then
+    # System with overlay - use only overlay stats
+    DISK_STATS=$(df -k | awk '$6 == "/" {print $2, $3, $4}')
+else
+    # No overlay - sum all mounted partitions (excluding tmpfs, devtmpfs, etc.)
+    DISK_STATS=$(df -k | awk 'NR>1 && $1 != "Filesystem" && $1 !~ /^tmpfs$/ && $1 !~ /^devtmpfs$/ && $1 !~ /^none$/ {total+=$2; used+=$3; avail+=$4} END {print total, used, avail}')
+fi
+
+DISK_TOTAL=$(echo $DISK_STATS | awk '{print $1}')
+DISK_USED=$(echo $DISK_STATS | awk '{print $2}')
+DISK_FREE=$(echo $DISK_STATS | awk '{print $3}')
+
+# Calculate percentage used
+if [ $DISK_TOTAL -gt 0 ]; then
+    DISK_PERCENT=$((100 * DISK_USED / DISK_TOTAL))
+else
+    DISK_PERCENT=0
+fi
+
+publish_metric "disk/total" "value:$DISK_TOTAL"
+publish_metric "disk/used" "value:$DISK_USED"
+publish_metric "disk/free" "value:$DISK_FREE"
+publish_metric "disk/percent" "value:$DISK_PERCENT"
+
+# Publish tmpfs (/tmp) usage
+TMP_STATS=$(df -k /tmp 2>/dev/null | awk 'NR==2 {print $2, $3, $4}')
+if [ -n "$TMP_STATS" ]; then
+    TMP_TOTAL=$(echo $TMP_STATS | awk '{print $1}')
+    TMP_USED=$(echo $TMP_STATS | awk '{print $2}')
+    TMP_FREE=$(echo $TMP_STATS | awk '{print $3}')
+    
+    # Calculate percentage used
+    if [ $TMP_TOTAL -gt 0 ]; then
+        TMP_PERCENT=$((100 * TMP_USED / TMP_TOTAL))
+    else
+        TMP_PERCENT=0
+    fi
+    
+    publish_metric "disk_tmp/total" "value:$TMP_TOTAL"
+    publish_metric "disk_tmp/used" "value:$TMP_USED"
+    publish_metric "disk_tmp/free" "value:$TMP_FREE"
+    publish_metric "disk_tmp/percent" "value:$TMP_PERCENT"
+fi
+
+# Publish network connection tracking statistics (total connections only)
+if [ -f /proc/net/nf_conntrack ]; then
+    CONN_TOTAL=$(wc -l < /proc/net/nf_conntrack)
+    publish_metric "conntrack/total" "value:$CONN_TOTAL"
+fi
 
 # Publish network interface statistics
 for INTERFACE in $(ls /sys/class/net/ | grep -v lo); do
