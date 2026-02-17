@@ -31,7 +31,7 @@ class OpenWrtMQTTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         return self.async_create_entry(
-            title="OpenWrt MQTT Auto-Discovery",
+            title=f"OpenWrt MQTT ({user_input['topic_prefix']})",
             data=user_input,
         )
 
