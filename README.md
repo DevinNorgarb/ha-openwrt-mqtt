@@ -79,11 +79,11 @@ The OpenWrt script supports two methods for publishing metrics to your MQTT brok
 **Recommended for most users.** Uses the standard MQTT protocol via `mosquitto_pub`.
 
 **Advantages:**
-- âœ… Direct connection to MQTT broker
-- âœ… Lower latency
-- âœ… More efficient (lightweight protocol)
-- âœ… Works with any MQTT broker
-- âœ… Standard MQTT features (QoS, retain, etc.)
+- Direct connection to MQTT broker
+- Lower latency
+- More efficient (lightweight protocol)
+- Works with any MQTT broker
+- Standard MQTT features (QoS, retain, etc.)
 
 **Requirements:**
 - MQTT broker accessible from OpenWrt router
