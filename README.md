@@ -40,6 +40,7 @@ The integration monitors the following metrics from your OpenWrt router:
 - **CPU**
   - Load average (1-minute, 5-minute, 15-minute)
   - Load percentage (based on number of cores)
+  - Temperature
 
 - **Memory Usage**
   - Free memory
