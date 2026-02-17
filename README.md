@@ -96,9 +96,9 @@ The OpenWrt script supports two methods for publishing metrics to your MQTT brok
 Uses Home Assistant's MQTT REST API endpoint to publish messages.
 
 **Advantages:**
-- âœ… No direct MQTT broker access needed from router
-- âœ… Uses Home Assistant as a proxy to MQTT
-- âœ… Useful when MQTT broker is not directly accessible
+- No direct MQTT broker access needed from router
+- Uses Home Assistant as a proxy to MQTT
+- Useful when MQTT broker is not directly accessible
 
 **Requirements:**
 - Home Assistant accessible from OpenWrt router
