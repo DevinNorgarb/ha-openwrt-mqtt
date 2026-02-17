@@ -1,8 +1,11 @@
 DOMAIN = "openwrt_mqtt"
 DEFAULT_TOPIC_PREFIX = "openwrt/+/"
+DEFAULT_TEMPERATURE_UNIT = "°C"
+TEMPERATURE_UNITS = ["°C", "°F"]
 DISCOVERY_TOPICS = [
     "cpu/load",
     "cpu/load_percent",
+    "cpu/temperature",
     "memory/memory-free",
     "memory/memory-cached",
     "memory/memory-used",

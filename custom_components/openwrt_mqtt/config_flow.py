@@ -5,7 +5,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
-from .const import DOMAIN, DEFAULT_TOPIC_PREFIX
+from .const import DOMAIN, DEFAULT_TOPIC_PREFIX, DEFAULT_TEMPERATURE_UNIT, TEMPERATURE_UNITS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ class OpenWrtMQTTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data_schema=vol.Schema(
                     {
                         vol.Required("topic_prefix", default=DEFAULT_TOPIC_PREFIX): str,
+                        vol.Required("temperature_unit", default=DEFAULT_TEMPERATURE_UNIT): vol.In(TEMPERATURE_UNITS),
                     }
                 ),
             )
@@ -61,6 +62,10 @@ class OpenWrtMQTTOptionsFlow(config_entries.OptionsFlow):
                         "topic_prefix",
                         default=self._config_entry.data.get("topic_prefix", DEFAULT_TOPIC_PREFIX),
                     ): str,
+                    vol.Required(
+                        "temperature_unit",
+                        default=self._config_entry.data.get("temperature_unit", DEFAULT_TEMPERATURE_UNIT),
+                    ): vol.In(TEMPERATURE_UNITS),
                 }
             ),
             errors=errors,

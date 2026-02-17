@@ -3,29 +3,33 @@ import logging
 import re
 from datetime import datetime, timedelta
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
-from homeassistant.const import UnitOfInformation, UnitOfDataRate
+from homeassistant.const import UnitOfInformation, UnitOfDataRate, UnitOfTemperature
 from homeassistant.core import callback
 from homeassistant.components import mqtt
 from homeassistant.helpers.device_registry import DeviceInfo
-from .const import DOMAIN
+from .const import DOMAIN, DEFAULT_TEMPERATURE_UNIT
 
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the OpenWrt MQTT sensors."""
-    # Store the callback to allow dynamic entity addition
-    hass.data[DOMAIN]["add_entities_callback"] = async_add_entities
-    
-    sensors = []
 
-    if DOMAIN not in hass.data:
+    if DOMAIN not in hass.data or entry.entry_id not in hass.data[DOMAIN]:
         return False
 
-    # Create sensors for already discovered entities
-    for hostname, device_info in hass.data[DOMAIN]["devices"].items():
+    # FIX : stocke le callback dans l'espace de données isolé de CETTE entry.
+    # Avant, un dict global unique causait l'écrasement du callback par la
+    # dernière entry chargée, ce qui provoquait des doublons.
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    entry_data["add_entities_callback"] = async_add_entities
+
+    sensors = []
+
+    # Create sensors for already discovered entities (this entry only)
+    for hostname, device_info in entry_data["devices"].items():
         if "entities" in device_info:
             for unique_id, data in device_info["entities"].items():
-                if unique_id in hass.data[DOMAIN]["setup_entities"]:
+                if unique_id in entry_data["setup_entities"]:
                     device_info_obj = DeviceInfo(
                         identifiers=device_info["identifiers"],
                         name=device_info["name"],
@@ -33,8 +37,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                         model=device_info["model"],
                         sw_version=device_info["sw_version"],
                     )
-                    
-                    # Potentially create multiple sensors for certain types
+
                     new_sensors = create_sensors_for_metric(hass, data, device_info_obj)
                     sensors.extend(new_sensors)
 
@@ -42,7 +45,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
         async_add_entities(sensors, True)
         _LOGGER.info("Created %d OpenWrt MQTT sensors at startup", len(sensors))
     else:
-        _LOGGER.info("No sensors to create at startup - will be added dynamically as MQTT messages arrive")
+        _LOGGER.info(
+            "No sensors to create at startup - will be added dynamically as MQTT messages arrive"
+        )
 
 def create_sensors_for_metric(hass, data, device_info):
     """Create one or more sensors based on the metric type."""
@@ -90,22 +95,25 @@ class OpenWrtMQTTSensor(SensorEntity):
         
         metric_type = data["metric_type"]
         hostname = data.get("hostname", "unknown")
-        
+        entry_id = data.get("entry_id", "")
+        # Préfixe incluant entry_id pour garantir l'unicité entre deux config entries
+        prefix = f"{entry_id}_{hostname}" if entry_id else hostname
+
         # Generate unique_id based on type
         if "load_type" in data:
             # CPU Load: unique_id includes the type (1min, 5min, 15min)
-            self._attr_unique_id = f"{hostname}_cpu_load_{data['load_type']}"
+            self._attr_unique_id = f"{prefix}_cpu_load_{data['load_type']}"
         elif "direction" in data:
             # Interface: unique_id includes direction (rx or tx) and type (total or rate)
             base_id = metric_type.replace('/', '_').replace('-', '_')
             sensor_type = data.get("sensor_type", "total")
             if sensor_type == "rate":
-                self._attr_unique_id = f"{hostname}_{base_id}_{data['direction']}_rate"
+                self._attr_unique_id = f"{prefix}_{base_id}_{data['direction']}_rate"
             else:
-                self._attr_unique_id = f"{hostname}_{base_id}_{data['direction']}"
+                self._attr_unique_id = f"{prefix}_{base_id}_{data['direction']}"
         else:
-            # Others: standard unique_id without openwrt_ prefix
-            self._attr_unique_id = f"{hostname}_{metric_type.replace('/', '_').replace('-', '_')}"
+            # Others: standard unique_id
+            self._attr_unique_id = f"{prefix}_{metric_type.replace('/', '_').replace('-', '_')}"
         
         # Sensor name (prefixed with hostname)
         self._attr_name = self._generate_name(hostname, metric_type)
@@ -131,6 +139,10 @@ class OpenWrtMQTTSensor(SensorEntity):
         # CPU load percentage
         elif metric_type == "cpu/load_percent":
             return f"{hostname} CPU Load %"
+        
+        # CPU temperature
+        elif metric_type == "cpu/temperature":
+            return f"{hostname} CPU Temperature"
         
         # Disk space
         elif metric_type.startswith("disk/"):
@@ -225,6 +237,17 @@ class OpenWrtMQTTSensor(SensorEntity):
             self._attr_icon = "mdi:chip"
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_suggested_display_precision = 0
+        
+        # CPU temperature
+        elif metric_type == "cpu/temperature":
+            temp_unit = self._data.get("temperature_unit", DEFAULT_TEMPERATURE_UNIT)
+            self._attr_native_unit_of_measurement = (
+                UnitOfTemperature.CELSIUS if temp_unit == "°C" else UnitOfTemperature.FAHRENHEIT
+            )
+            self._attr_device_class = SensorDeviceClass.TEMPERATURE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+            self._attr_suggested_display_precision = 1
+            self._attr_icon = "mdi:thermometer"
         
         # Memory in MB (converted from KiB) or percentage
         elif "memory" in metric_type:
@@ -363,6 +386,12 @@ class OpenWrtMQTTSensor(SensorEntity):
                 if match:
                     return int(match.group(1))
             
+            # CPU temperature: format is "value:59"
+            elif metric_type == "cpu/temperature":
+                match = re.search(r'value:([\d.]+)', payload)
+                if match:
+                    return round(float(match.group(1)), 1)
+            
             # Memory: format is "value:12345" (convert KiB to MiB, or keep percentage as is)
             elif "memory" in metric_type:
                 match = re.search(r'value:([\d]+)', payload)
@@ -447,10 +476,13 @@ class OpenWrtMQTTRateSensor(SensorEntity):
         
         metric_type = data["metric_type"]
         hostname = data.get("hostname", "unknown")
-        
+        entry_id = data.get("entry_id", "")
+        # Préfixe incluant entry_id pour garantir l'unicité entre deux config entries
+        prefix = f"{entry_id}_{hostname}" if entry_id else hostname
+
         # Generate unique_id for the rate sensor
         base_id = metric_type.replace('/', '_').replace('-', '_')
-        self._attr_unique_id = f"{hostname}_{base_id}_{data['direction']}_rate"
+        self._attr_unique_id = f"{prefix}_{base_id}_{data['direction']}_rate"
         
         # Sensor name (prefixed with hostname)
         self._attr_name = self._generate_name(hostname, metric_type)
