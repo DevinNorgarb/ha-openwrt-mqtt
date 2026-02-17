@@ -69,6 +69,45 @@ The integration monitors the following metrics from your OpenWrt router:
 
 All network metrics include both cumulative counters and automatically calculated rates (per second).
 
+## Publishing Methods
+
+The OpenWrt script supports two methods for publishing metrics to your MQTT broker:
+
+### Method 1: Native MQTT (`mqtt`)
+
+**Recommended for most users.** Uses the standard MQTT protocol via `mosquitto_pub`.
+
+**Advantages:**
+- âœ… Direct connection to MQTT broker
+- âœ… Lower latency
+- âœ… More efficient (lightweight protocol)
+- âœ… Works with any MQTT broker
+- âœ… Standard MQTT features (QoS, retain, etc.)
+
+**Requirements:**
+- MQTT broker accessible from OpenWrt router
+- `mosquitto-client` package (installed automatically)
+
+**Use case:** You have a dedicated MQTT broker (like Mosquitto) accessible on your network.
+
+### Method 2: HTTP via Home Assistant REST API (`http`)
+
+Uses Home Assistant's MQTT REST API endpoint to publish messages.
+
+**Advantages:**
+- âœ… No direct MQTT broker access needed from router
+- âœ… Uses Home Assistant as a proxy to MQTT
+- âœ… Useful when MQTT broker is not directly accessible
+
+**Requirements:**
+- Home Assistant accessible from OpenWrt router
+- Long-Lived Access Token from Home Assistant
+- `curl` package (installed automatically)
+
+**Use case:** Your MQTT broker is not directly accessible from the router, but Home Assistant is (e.g., Home Assistant Cloud setup, or firewall restrictions).
+
+**Note:** This method requires Home Assistant to relay messages to the MQTT broker, adding a slight overhead compared to the native MQTT method.
+
 ## Installation
 
 ### Part 1: OpenWrt Router Setup
@@ -92,19 +131,34 @@ All network metrics include both cumulative counters and automatically calculate
    chmod +x /tmp/setup_metrics.sh
    ```
 
-3. **Configure MQTT settings:**
+3. **Configure publishing method and MQTT settings:**
    
-   Before running the setup script, edit it to configure your MQTT broker details:
+   Before running the setup script, edit it to choose your publishing method and configure your MQTT broker details:
    ```bash
    vi /tmp/setup_metrics.sh
    ```
    
-   Update the following variables in the script:
+   **Choose your publishing method:**
+   ```bash
+   PUBLISH_METHOD="mqtt"    # or "http"
+   ```
+   
+   - **`mqtt`** (default): Uses native MQTT protocol via `mosquitto_pub` (installed automatically via opkg)
+   - **`http`**: Uses Home Assistant's MQTT REST API (requires `curl`, installed automatically via opkg)
+   
+   **For native MQTT method (`mqtt`)**, update these variables:
    ```bash
    MQTT_BROKER="<mqtt_broker_ip>"        # Your MQTT broker IP address
    MQTT_PORT="<mqtt_port>"                # MQTT port (usually 1883)
    MQTT_USER="<mqtt_user>"                # MQTT username
    MQTT_PASSWORD="<mqtt_password>"        # MQTT password
+   ```
+   
+   **For HTTP/Home Assistant method (`http`)**, update these variables:
+   ```bash
+   HA_URL="<ha_url>"                      # e.g. http://homeassistant.local
+   HA_PORT="<ha_port>"                    # e.g. 8123
+   HA_TOKEN="<ha_token>"                  # Long-Lived Access Token from HA
    ```
    
    Save and exit (`:wq` in vi).
@@ -127,9 +181,17 @@ All network metrics include both cumulative counters and automatically calculate
 
 #### What the Setup Script Does
 
+The setup script automatically configures your OpenWrt router based on the chosen publishing method:
+
+**For `mqtt` method:**
 - Installs `mosquitto-client` (mosquitto_pub) if not already present
 - Intelligently handles SSL and non-SSL mosquitto library dependencies
-- Creates `/usr/bin/publish_metrics.sh` to collect and publish metrics
+
+**For `http` method:**
+- Installs `curl` if not already present
+
+**For both methods:**
+- Creates `/usr/bin/publish_metrics.sh` configured with your chosen method to collect and publish metrics
 - Adds a cron job to run the script every 5 minutes
 
 ### Part 2: Home Assistant Integration
@@ -377,7 +439,8 @@ The modular design makes it simple to extend the monitoring capabilities to suit
 - OpenWrt 19.07 or newer (tested on recent versions)
 - Minimum 8MB flash / 64MB RAM (typical for most routers)
 - Internet access for package installation
-- mosquitto-client package (installed automatically by setup script)
+- **For `mqtt` method:** mosquitto-client package (installed automatically by setup script)
+- **For `http` method:** curl package (installed automatically by setup script)
 
 ### Home Assistant
 - Home Assistant 2023.1 or newer
