@@ -446,63 +446,6 @@ begin
 end;
 
 // ============================================================
-// Read a localized performance counter name from the registry.
-// Perflib\CurrentLanguage holds a REG_MULTI_SZ whose entries
-// alternate: numeric-index \0 localized-name \0 ...
-// Index 238 = Processor object, Index 6 = % Processor Time.
-// ============================================================
-function GetPerfCounterName(Index: Integer): string;
-var
-  RegKey   : HKEY;
-  DataSize : DWORD;
-  DataType : DWORD;
-  Data     : array of Byte;
-  P        : PChar;
-  CurStr   : string;
-  IsIdx    : Boolean;
-  LastIdx  : string;
-begin
-  Result   := '';
-  DataSize := 0;
-  DataType := 0;
-  LastIdx  := '';
-
-  if RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-       'SOFTWARE\Microsoft\Windows NT\CurrentVersion\Perflib\CurrentLanguage',
-       0, KEY_READ, RegKey) <> ERROR_SUCCESS then Exit;
-
-  try
-    RegQueryValueEx(RegKey, 'Counter', nil, @DataType, nil, @DataSize);
-    if DataSize = 0 then Exit;
-
-    SetLength(Data, DataSize + 2);
-    FillChar(Data[0], Length(Data), 0);
-
-    if RegQueryValueEx(RegKey, 'Counter', nil, @DataType,
-                       @Data[0], @DataSize) <> ERROR_SUCCESS then Exit;
-
-    // Walk REG_MULTI_SZ pairs: index \0 name \0 ... \0 \0
-    P     := PChar(@Data[0]);
-    IsIdx := True;
-    while P^ <> #0 do
-    begin
-      CurStr := P;
-      if IsIdx then
-        LastIdx := CurStr
-      else if LastIdx = IntToStr(Index) then
-      begin
-        Result := CurStr;
-        Exit;
-      end;
-      IsIdx := not IsIdx;
-      Inc(P, Length(CurStr) + 1);
-    end;
-  finally
-    RegCloseKey(RegKey);
-  end;
-end;
-
-// ============================================================
 // CPU load % via typeperf using registry-resolved counter names.
 // Takes 2 samples; the last value is retained (more accurate).
 // Returns 0 if typeperf fails (e.g. some VMs).
@@ -519,18 +462,11 @@ var
 begin
   Result := 0;
 
-  ObjName     := GetPerfCounterName(238); // "Processor" or localized
-  CounterName := GetPerfCounterName(6);   // "% Processor Time" or localized
-  if ObjName     = '' then ObjName     := 'Processor';
-  if CounterName = '' then CounterName := '% Processor Time';
-
-  CounterPath := '\' + ObjName + '(_Total)\' + CounterName;
-
   FillChar(TempBuf, SizeOf(TempBuf), 0);
   GetTempPath(SizeOf(TempBuf), TempBuf);
   TempFile := TempBuf + 'wm_cpu.csv';
 
-  RunCommand('typeperf "' + CounterPath + '" -sc 2 -o "' + TempFile + '"');
+  RunCommand('typeperf "\238(_Total)\6" -sc 2 -o "' + TempFile + '"');
   if not FileExists(TempFile) then Exit;
 
   try
