@@ -92,7 +92,7 @@ while true; do
     # ---------- System information ----------
     HOSTNAME=$(cat /usr/data/nickname.dat 2>/dev/null || echo "unknown")
     MODEL=$(cat /usr/rcfg/Name.dat 2>/dev/null || echo "Unknown Model")
-    VERSION=$(cat /usr/tmp/version_main.dat 2>/dev/null | awk '{print $1"-"$2}')
+    VERSION=$(grep 'VER_MAINSW' /usr/data/blackbox/cleaningrecord.stc 2>/dev/null | sed 's/.*value="\([^"]*\)".*/\1/')
     [ -z "$VERSION" ] && VERSION="unknown"
     TARGET_PLATFORM=$(grep "Hardware" /proc/cpuinfo | cut -d':' -f2 | sed 's/^ //')
     ARCHITECTURE=$(grep "Processor" /proc/cpuinfo | cut -d':' -f2 | sed 's/^ //')
