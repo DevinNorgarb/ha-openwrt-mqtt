@@ -1,11 +1,11 @@
 #!/bin/sh
 
 # ============================================================
-# Setup script for LG Router monitoring to Home Assistant
+# Setup script for LG Hombot monitoring to Home Assistant
 # ============================================================
 
 echo "========================================="
-echo "LG Router Monitoring Setup"
+echo "LG Hombot Monitoring Setup"
 echo "========================================="
 echo ""
 
@@ -54,7 +54,7 @@ echo "Creating /usr/data/publish_metrics.sh..."
 
 cat > /usr/data/publish_metrics.sh << 'SCRIPT_END'
 #!/bin/sh
-# Monitoring LG Router vers Home Assistant
+# Monitoring LG Hombot vers Home Assistant
 
 # ===== CONFIGURATION =====
 HA_URL="%%HA_URL%%"
