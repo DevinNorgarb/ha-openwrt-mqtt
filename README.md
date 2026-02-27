@@ -1,5 +1,10 @@
 # OpenWrt MQTT Auto-Discovery for Home Assistant
 
+[![Works with Home Assistant](https://img.shields.io/badge/Works%20with-Home%20Assistant-41BDF5?logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?logo=homeassistantcommunitystore&logoColor=white)](https://hacs.xyz/docs/publishing/include)
+[![Latest Version](https://img.shields.io/github/v/tag/aldweb/ha-openwrt-mqtt?label=Latest%20Version&logo=github&color=blue)](https://github.com/aldweb/ha-openwrt-mqtt/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 <img src="https://raw.githubusercontent.com/aldweb/ha-openwrt-mqtt/master/images/openwrt-one-router.png" align="left" width="300" style="margin-right: 20px; margin-bottom: 20px;">
 A comprehensive monitoring solution that brings your OpenWrt router metrics into Home Assistant through MQTT auto-discovery.
 <br clear="all" />
