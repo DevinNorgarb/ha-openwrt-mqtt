@@ -133,7 +133,7 @@ Uses Home Assistant's MQTT REST API endpoint to publish messages.
 
 2. **Download the setup script:**
    ```bash
-   wget https://raw.githubusercontent.com/aldweb/ha-openwrt-mqtt/main/setup_metrics.sh -O /tmp/setup_metrics.sh
+   wget https://github.com/aldweb/ha-openwrt-mqtt/raw/refs/heads/main/openwrt/setup_metrics.sh -O /tmp/setup_metrics.sh
    chmod +x /tmp/setup_metrics.sh
    ```
 
