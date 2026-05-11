@@ -259,8 +259,8 @@ for INTERFACE in \$(ls /sys/class/net/ | grep -v lo); do
 done
 SCRIPT_END
 
-# Make the script executable (and protect embedded credentials)
-chmod 700 /usr/bin/publish_metrics.sh
+# Make the script executable
+chmod +x /usr/bin/publish_metrics.sh
 
 echo "publish_metrics.sh installed (method: $PUBLISH_METHOD)"
 
