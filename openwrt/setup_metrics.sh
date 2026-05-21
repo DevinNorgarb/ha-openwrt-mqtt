@@ -2,7 +2,7 @@
 
 # ============================================================
 # CONFIGURATION - Choose publish method:
-#   "mqtt"  = native mosquitto_pub (installed via opkg)
+#   "mqtt"  = native mosquitto_pub (installed via opkg/apk)
 #   "http"  = Home Assistant MQTT REST API (requires curl)
 # ============================================================
 PUBLISH_METHOD="mqtt"
@@ -25,23 +25,81 @@ MQTT_TOPIC_PREFIX="openwrt"
 
 # ---------- Install dependencies ----------
 
+detect_pkg_manager() {
+    if command -v opkg >/dev/null 2>&1; then
+        echo "opkg"
+        return 0
+    fi
+    if command -v apk >/dev/null 2>&1; then
+        echo "apk"
+        return 0
+    fi
+    return 1
+}
+
+pkg_update() {
+    case "$PKG_MGR" in
+        opkg) opkg update ;;
+        apk) : ;; # apk doesn't need update when using --no-cache
+        *) return 1 ;;
+    esac
+}
+
+pkg_is_installed() {
+    # usage: pkg_is_installed <package>
+    case "$PKG_MGR" in
+        opkg) opkg list-installed 2>/dev/null | grep -q "^$1 " ;;
+        apk) apk info -e "$1" >/dev/null 2>&1 ;;
+        *) return 1 ;;
+    esac
+}
+
+pkg_install() {
+    # usage: pkg_install <packages...>
+    case "$PKG_MGR" in
+        opkg) opkg install "$@" ;;
+        apk) apk add --no-cache "$@" ;;
+        *) return 1 ;;
+    esac
+}
+
+apk_has_package() {
+    # usage: apk_has_package <package>
+    # `apk info -e` only works for installed packages; we need to query repositories.
+    apk search -q -x "$1" >/dev/null 2>&1
+}
+
+PKG_MGR="$(detect_pkg_manager)" || {
+    echo "Error: no supported package manager found (need opkg or apk)."
+    exit 1
+}
+
 if [ "$PUBLISH_METHOD" = "mqtt" ]; then
-    # Update packages
-    opkg update
-
-    # Check if mosquitto_pub is already installed
     if ! command -v mosquitto_pub > /dev/null 2>&1; then
-        echo "Installing mosquitto-client..."
+        echo "Installing mosquitto_pub using $PKG_MGR..."
+        pkg_update
 
-        if opkg list-installed | grep -q "libmosquitto-ssl"; then
-            echo "libmosquitto-ssl is already installed, installing mosquitto-client-ssl..."
-            opkg install mosquitto-client-ssl
-        elif opkg list-installed | grep -q "libmosquitto-nossl"; then
-            echo "libmosquitto-nossl is already installed, installing mosquitto-client-nossl..."
-            opkg install mosquitto-client-nossl
+        if [ "$PKG_MGR" = "opkg" ]; then
+            if pkg_is_installed "libmosquitto-ssl"; then
+                echo "libmosquitto-ssl is already installed, installing mosquitto-client-ssl..."
+                pkg_install mosquitto-client-ssl
+            elif pkg_is_installed "libmosquitto-nossl"; then
+                echo "libmosquitto-nossl is already installed, installing mosquitto-client-nossl..."
+                pkg_install mosquitto-client-nossl
+            else
+                echo "Installing libmosquitto-nossl and mosquitto-client-nossl..."
+                pkg_install libmosquitto-nossl mosquitto-client-nossl
+            fi
         else
-            echo "Installing libmosquitto-nossl and mosquitto-client-nossl..."
-            opkg install libmosquitto-nossl mosquitto-client-nossl
+            # OpenWrt apk feeds typically expose mosquitto-client-{ssl,nossl}
+            if apk_has_package "mosquitto-client-ssl"; then
+                pkg_install mosquitto-client-ssl || { echo "Error: mosquitto-client-ssl installation failed."; exit 1; }
+            elif apk_has_package "mosquitto-client-nossl"; then
+                pkg_install mosquitto-client-nossl || { echo "Error: mosquitto-client-nossl installation failed."; exit 1; }
+            else
+                echo "Error: no mosquitto_pub package found via apk (expected mosquitto-client-ssl or mosquitto-client-nossl)."
+                exit 1
+            fi
         fi
     else
         echo "mosquitto_pub is already installed."
@@ -54,9 +112,9 @@ if [ "$PUBLISH_METHOD" = "mqtt" ]; then
 
 elif [ "$PUBLISH_METHOD" = "http" ]; then
     if ! command -v curl > /dev/null 2>&1; then
-        echo "curl not found, installing..."
-        opkg update
-        opkg install curl || { echo "Error: curl installation failed."; exit 1; }
+        echo "curl not found, installing using $PKG_MGR..."
+        pkg_update
+        pkg_install curl || { echo "Error: curl installation failed."; exit 1; }
     else
         echo "curl is already installed."
     fi
@@ -89,7 +147,11 @@ HA_TOKEN="$HA_TOKEN"
 
 # Common
 MQTT_TOPIC_PREFIX="$MQTT_TOPIC_PREFIX"
-HOSTNAME=\$(uci get system.@system[0].hostname 2>/dev/null || hostname)
+if command -v uci >/dev/null 2>&1; then
+    HOSTNAME=\$(uci get system.@system[0].hostname 2>/dev/null || hostname)
+else
+    HOSTNAME=\$(hostname)
+fi
 
 # ---------- publish_metric dispatcher ----------
 publish_metric() {

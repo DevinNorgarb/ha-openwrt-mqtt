@@ -2,10 +2,10 @@
 
 [![Works with Home Assistant](https://img.shields.io/badge/Works%20with-Home%20Assistant-41BDF5?logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?logo=homeassistantcommunitystore&logoColor=white)](https://hacs.xyz/docs/publishing/include)
-[![Latest Version](https://img.shields.io/github/v/tag/aldweb/ha-openwrt-mqtt?label=Latest%20Version&logo=github&color=blue)](https://github.com/aldweb/ha-openwrt-mqtt/releases)
+[![Latest Version](https://img.shields.io/github/v/tag/DevinNorgarb/ha-openwrt-mqtt?label=Latest%20Version&logo=github&color=blue)](https://github.com/DevinNorgarb/ha-openwrt-mqtt/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-<img src="https://raw.githubusercontent.com/aldweb/ha-openwrt-mqtt/master/images/openwrt-one-router.png" align="left" width="300" style="margin-right: 20px; margin-bottom: 20px;">
+<img src="https://raw.githubusercontent.com/DevinNorgarb/ha-openwrt-mqtt/master/images/openwrt-one-router.png" align="left" width="300" style="margin-right: 20px; margin-bottom: 20px;">
 A comprehensive monitoring solution that brings your OpenWrt router metrics into Home Assistant through MQTT auto-discovery.
 <br clear="all" />
 
@@ -133,25 +133,25 @@ Uses Home Assistant's MQTT REST API endpoint to publish messages.
 
 2. **Download the setup script:**
    ```bash
-   wget https://github.com/aldweb/ha-openwrt-mqtt/raw/refs/heads/main/openwrt/setup_metrics.sh -O /tmp/setup_metrics.sh
+   wget https://github.com/DevinNorgarb/ha-openwrt-mqtt/raw/refs/heads/main/openwrt/setup_metrics.sh -O /tmp/setup_metrics.sh
    chmod +x /tmp/setup_metrics.sh
    ```
 
 3. **Configure publishing method and MQTT settings:**
-   
+
    Before running the setup script, edit it to choose your publishing method and configure your MQTT broker details:
    ```bash
    vi /tmp/setup_metrics.sh
    ```
-   
+
    **Choose your publishing method:**
    ```bash
    PUBLISH_METHOD="mqtt"    # or "http"
    ```
-   
+
    - **`mqtt`** (default): Uses native MQTT protocol via `mosquitto_pub` (installed automatically via opkg)
    - **`http`**: Uses Home Assistant's MQTT REST API (requires `curl`, installed automatically via opkg)
-   
+
    **For native MQTT method (`mqtt`)**, update these variables:
    ```bash
    MQTT_BROKER="<mqtt_broker_ip>"        # Your MQTT broker IP address
@@ -159,16 +159,16 @@ Uses Home Assistant's MQTT REST API endpoint to publish messages.
    MQTT_USER="<mqtt_user>"                # MQTT username
    MQTT_PASSWORD="<mqtt_password>"        # MQTT password
    ```
-   
+
    **For HTTP/Home Assistant method (`http`)**, update these variables:
    ```bash
    HA_URL="<ha_url>"                      # e.g. http://homeassistant.local
    HA_PORT="<ha_port>"                    # e.g. 8123
    HA_TOKEN="<ha_token>"                  # Long-Lived Access Token from HA
    ```
-   
+
    Save and exit (`:wq` in vi).
-   
+
    **Alternative**: You can also run the setup script first and then edit `/usr/bin/publish_metrics.sh` afterwards to configure these settings.
 
 4. **Run the setup script:**
@@ -180,7 +180,7 @@ Uses Home Assistant's MQTT REST API endpoint to publish messages.
    ```bash
    /usr/bin/publish_metrics.sh
    ```
-   
+
    Check your MQTT broker to verify that messages are being published under the `openwrt/<hostname>/` topic.
 
 6. **The script is automatically scheduled to run every 5 minutes via cron.**
@@ -221,7 +221,7 @@ Choose one of the following installation methods:
    - Click on "Integrations"
    - Click the three dots (⋮) in the top right corner
    - Select "Custom repositories"
-   - Add the repository URL: `https://github.com/aldweb/ha-openwrt-mqtt`
+   - Add the repository URL: `https://github.com/DevinNorgarb/ha-openwrt-mqtt`
    - Select category: "Integration"
    - Click "Add"
 
@@ -243,7 +243,7 @@ Choose one of the following installation methods:
 ##### Option 2: Manual Installation
 
 1. **Download the integration:**
-   
+
    Copy the `openwrt_mqtt` folder to your Home Assistant `custom_components` directory:
    ```
    custom_components/
@@ -258,7 +258,7 @@ Choose one of the following installation methods:
           └── en.json
    ```
 
-   You can download the files from the [GitHub repository](https://github.com/aldweb/ha-openwrt-mqtt).
+   You can download the files from the [GitHub repository](https://github.com/DevinNorgarb/ha-openwrt-mqtt).
 
 2. **Restart Home Assistant**
 
@@ -482,4 +482,4 @@ Developed by @aldweb
 ## Support
 
 For issues, questions, or feature requests, please visit:
-https://github.com/aldweb/ha-openwrt-mqtt/issues
+https://github.com/DevinNorgarb/ha-openwrt-mqtt/issues
