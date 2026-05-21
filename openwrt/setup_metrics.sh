@@ -63,6 +63,12 @@ pkg_install() {
     esac
 }
 
+apk_has_package() {
+    # usage: apk_has_package <package>
+    # `apk info -e` only works for installed packages; we need to query repositories.
+    apk search -q -x "$1" >/dev/null 2>&1
+}
+
 PKG_MGR="$(detect_pkg_manager)" || {
     echo "Error: no supported package manager found (need opkg or apk)."
     exit 1
@@ -85,7 +91,15 @@ if [ "$PUBLISH_METHOD" = "mqtt" ]; then
                 pkg_install libmosquitto-nossl mosquitto-client-nossl
             fi
         else
-            pkg_install mosquitto-clients || { echo "Error: mosquitto-clients installation failed."; exit 1; }
+            # OpenWrt apk feeds typically expose mosquitto-client-{ssl,nossl}
+            if apk_has_package "mosquitto-client-ssl"; then
+                pkg_install mosquitto-client-ssl || { echo "Error: mosquitto-client-ssl installation failed."; exit 1; }
+            elif apk_has_package "mosquitto-client-nossl"; then
+                pkg_install mosquitto-client-nossl || { echo "Error: mosquitto-client-nossl installation failed."; exit 1; }
+            else
+                echo "Error: no mosquitto_pub package found via apk (expected mosquitto-client-ssl or mosquitto-client-nossl)."
+                exit 1
+            fi
         fi
     else
         echo "mosquitto_pub is already installed."
