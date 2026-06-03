@@ -41,7 +41,10 @@ The slug (`192_168_1_42` or MAC-based) comes from DHCP hostname or IP; friendly 
    ```sh
    nlbw -c json -n | jq -r '.columns, (.data | length)'
    /usr/bin/publish_metrics.sh
-   mosquitto_sub -h <broker> -t 'openwrt/+/nlbw-+/if_octets' -v
+   # MQTT + only matches a whole topic level — NOT "nlbw-<anything>":
+   mosquitto_sub -h <broker> -u <user> -P <pass> -t 'openwrt/#' -v | grep nlbw
+   # or all if_octets (interfaces + per-host):
+   mosquitto_sub -h <broker> -u <user> -P <pass> -t 'openwrt/+/+/if_octets' -v
    ```
 
 ### Packages installed
@@ -79,7 +82,8 @@ Combine with WAN interface sensors (`pppoe-wan`, `wan_download_mbit_s`) for “w
 | Symptom | Fix |
 |---------|-----|
 | No `nlbw-*` entities | Run `nlbw -c show` on router; generate traffic; check `jq` installed |
-| Empty MQTT | `ENABLE_NLBW=true` in `/usr/bin/publish_metrics.sh`; re-run setup script |
+| Empty MQTT | `ENABLE_NLBW=true` in `/etc/openwrt-metrics.env`; run publish script; grep nlbw on `openwrt/#` |
+| `unable to subscribe` to `nlbw-+` | Invalid filter — use `openwrt/#` or `openwrt/+/+/if_octets` (see CLI check above) |
 | Wrong host names | Set static DHCP hostnames in OpenWrt; slug uses hostname when present |
 | `Cannot index array with string "mac"` | Old jq expected objects; update script from `main` (uses `columns` + `data` rows) |
 | JSON parse errors | Run `nlbw -c json -n \| jq '.columns'` and confirm `mac`, `rx_bytes`, `tx_bytes` exist |
