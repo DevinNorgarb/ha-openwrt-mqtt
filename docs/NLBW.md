@@ -83,3 +83,4 @@ Combine with WAN interface sensors (`pppoe-wan`, `wan_download_mbit_s`) for “w
 | Wrong host names | Set static DHCP hostnames in OpenWrt; slug uses hostname when present |
 | `Cannot index array with string "mac"` | Old jq expected objects; update script from `main` (uses `columns` + `data` rows) |
 | JSON parse errors | Run `nlbw -c json -n \| jq '.columns'` and confirm `mac`, `rx_bytes`, `tx_bytes` exist |
+| `jq was compiled without ONIGURUMA` | Update `publish_metrics.sh` from `main` (slugify in shell, not `gsub` in jq) |

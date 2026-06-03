@@ -137,6 +137,7 @@ publish_nlbw_devices() {
     [ "$ENABLE_NLBW" = "true" ] || return 0
     command -v nlbw >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 0
 
+    # OpenWrt jq is often built without ONIGURUMA — no gsub/test/match. Slugify in shell.
     nlbw -c json -n 2>/dev/null | jq -r '
         .columns as $cols | .data as $rows |
         ($cols | index("mac")) as $mi |
@@ -149,21 +150,24 @@ publish_nlbw_devices() {
             | group_by(.[$mi])
             | .[]
             | [
-                (.[0][$mi] | gsub(":"; "") | ascii_downcase),
-                ((map(.[$ii] // empty) | map(select(. != "" and . != "00:00:00")) | .[0] // .[0][$mi])
-                  | tostring | gsub("[^a-zA-Z0-9._-]"; "_")),
+                (.[0][$mi] | tostring),
+                ((map(.[$ii] // empty) | map(select(. != "" and . != "00:00:00")) | .[0] // "") | tostring),
                 (map(.[$rxi] // 0) | add),
                 (map(.[$txi] // 0) | add)
               ]
             | @tsv
         else empty end
-    ' | while IFS="$(printf '\t')" read -r mac_slug host_slug rx tx; do
-        [ -n "$mac_slug" ] || continue
-        slug="$mac_slug"
-        if [ -n "$host_slug" ] && [ "$host_slug" != "$mac_slug" ]; then
-            slug="$host_slug"
+    ' | while IFS="$(printf '\t')" read -r mac ip rx tx; do
+        [ -n "$mac" ] || continue
+        [ -n "$rx" ] && [ -n "$tx" ] || continue
+        slug=""
+        if [ -n "$ip" ] && [ "$ip" != "0.0.0.0" ]; then
+            slug=$(printf '%s' "$ip" | tr '[:upper:]' '[:lower:]' | tr -cd '0-9.' | tr '.' '_')
         fi
-        slug=$(echo "$slug" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9._-' | cut -c1-48)
+        if [ -z "$slug" ]; then
+            slug=$(printf '%s' "$mac" | tr -d ':' | tr '[:upper:]' '[:lower:]' | tr -cd 'a-f0-9')
+        fi
+        slug=$(printf '%s' "$slug" | cut -c1-48)
         [ -n "$slug" ] || continue
         publish_metric "nlbw-$slug/if_octets" "rx:$rx,tx:$tx"
     done
