@@ -303,20 +303,28 @@ publish_nlbw_devices() {
     [ "\$ENABLE_NLBW" = "true" ] || return 0
     command -v nlbw >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 0
 
-    # Group by MAC: "nlbw -c show" splits each host by Layer7; totals need summing.
+    # nlbw JSON: {"columns":["family","mac","ip",...],"data":[[row],[row],...]}
+    # Rows are arrays, not objects; group by MAC and sum rx/tx across Layer7 rows.
     nlbw -c json -n 2>/dev/null | jq -r '
-        (if type == "object" and ((.data // []) | type) == "array" then .data[] else .[] end)?
-        | select((.mac // "") != "" and (.mac // "") != "00:00:00")
-        | group_by(.mac)
-        | .[]
-        | [
-            (.[0].mac | gsub(":"; "") | ascii_downcase),
-            ((map(.host // .ip // empty) | map(select(. != "" and . != "00:00:00")) | .[0]) // .[0].mac
-              | tostring | gsub("[^a-zA-Z0-9._-]"; "_")),
-            (map(.rx_bytes // 0) | add),
-            (map(.tx_bytes // 0) | add)
-          ]
-        | @tsv
+        .columns as $cols | .data as $rows |
+        ($cols | index("mac")) as $mi |
+        ($cols | index("ip")) as $ii |
+        ($cols | index("rx_bytes")) as $rxi |
+        ($cols | index("tx_bytes")) as $txi |
+        if ($mi != null and $rxi != null and $txi != null) then
+            $rows
+            | map(select(.[$mi] != null and .[$mi] != "" and .[$mi] != "00:00:00"))
+            | group_by(.[$mi])
+            | .[]
+            | [
+                (.[0][$mi] | gsub(":"; "") | ascii_downcase),
+                ((map(.[$ii] // empty) | map(select(. != "" and . != "00:00:00")) | .[0] // .[0][$mi])
+                  | tostring | gsub("[^a-zA-Z0-9._-]"; "_")),
+                (map(.[$rxi] // 0) | add),
+                (map(.[$txi] // 0) | add)
+              ]
+            | @tsv
+        else empty end
     ' | while IFS="\$(printf '\t')" read -r mac_slug host_slug rx tx; do
         [ -n "\$mac_slug" ] || continue
         slug="\$mac_slug"

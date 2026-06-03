@@ -37,7 +37,7 @@ The slug (`192_168_1_42` or MAC-based) comes from DHCP hostname or IP; friendly 
 6. **CLI check:**
 
    ```sh
-   nlbw -c json -n | jq 'length'
+   nlbw -c json -n | jq -r '.columns, (.data | length)'
    /usr/bin/publish_metrics.sh
    mosquitto_sub -h <broker> -t 'openwrt/+/nlbw-+/if_octets' -v
    ```
@@ -79,4 +79,5 @@ Combine with WAN interface sensors (`pppoe-wan`, `wan_download_mbit_s`) for “w
 | No `nlbw-*` entities | Run `nlbw -c show` on router; generate traffic; check `jq` installed |
 | Empty MQTT | `ENABLE_NLBW=true` in `/usr/bin/publish_metrics.sh`; re-run setup script |
 | Wrong host names | Set static DHCP hostnames in OpenWrt; slug uses hostname when present |
-| JSON parse errors | Run `nlbw -c json -n \| head` and open an issue with sample output |
+| `Cannot index array with string "mac"` | Old jq expected objects; update script from `main` (uses `columns` + `data` rows) |
+| JSON parse errors | Run `nlbw -c json -n \| jq '.columns'` and confirm `mac`, `rx_bytes`, `tx_bytes` exist |
