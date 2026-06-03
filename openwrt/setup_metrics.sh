@@ -303,14 +303,18 @@ publish_nlbw_devices() {
     [ "\$ENABLE_NLBW" = "true" ] || return 0
     command -v nlbw >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 0
 
+    # Group by MAC: "nlbw -c show" splits each host by Layer7; totals need summing.
     nlbw -c json -n 2>/dev/null | jq -r '
         (if type == "object" and ((.data // []) | type) == "array" then .data[] else .[] end)?
-        | select((.mac // "") != "")
+        | select((.mac // "") != "" and (.mac // "") != "00:00:00")
+        | group_by(.mac)
+        | .[]
         | [
-            (.mac | gsub(":"; "") | ascii_downcase),
-            (.host // .ip // .mac | tostring | gsub("[^a-zA-Z0-9._-]"; "_")),
-            (.rx_bytes // 0),
-            (.tx_bytes // 0)
+            (.[0].mac | gsub(":"; "") | ascii_downcase),
+            ((map(.host // .ip // empty) | map(select(. != "" and . != "00:00:00")) | .[0]) // .[0].mac
+              | tostring | gsub("[^a-zA-Z0-9._-]"; "_")),
+            (map(.rx_bytes // 0) | add),
+            (map(.tx_bytes // 0) | add)
           ]
         | @tsv
     ' | while IFS="\$(printf '\t')" read -r mac_slug host_slug rx tx; do
