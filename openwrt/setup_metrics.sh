@@ -306,22 +306,22 @@ publish_nlbw_devices() {
     # nlbw JSON: {"columns":["family","mac","ip",...],"data":[[row],[row],...]}
     # Rows are arrays, not objects; group by MAC and sum rx/tx across Layer7 rows.
     nlbw -c json -n 2>/dev/null | jq -r '
-        .columns as $cols | .data as $rows |
-        ($cols | index("mac")) as $mi |
-        ($cols | index("ip")) as $ii |
-        ($cols | index("rx_bytes")) as $rxi |
-        ($cols | index("tx_bytes")) as $txi |
-        if ($mi != null and $rxi != null and $txi != null) then
-            $rows
-            | map(select(.[$mi] != null and .[$mi] != "" and .[$mi] != "00:00:00"))
-            | group_by(.[$mi])
+        .columns as \$cols | .data as \$rows |
+        (\$cols | index("mac")) as \$mi |
+        (\$cols | index("ip")) as \$ii |
+        (\$cols | index("rx_bytes")) as \$rxi |
+        (\$cols | index("tx_bytes")) as \$txi |
+        if (\$mi != null and \$rxi != null and \$txi != null) then
+            \$rows
+            | map(select(.[\$mi] != null and .[\$mi] != "" and .[\$mi] != "00:00:00"))
+            | group_by(.[\$mi])
             | .[]
             | [
-                (.[0][$mi] | gsub(":"; "") | ascii_downcase),
-                ((map(.[$ii] // empty) | map(select(. != "" and . != "00:00:00")) | .[0] // .[0][$mi])
+                (.[0][\$mi] | gsub(":"; "") | ascii_downcase),
+                ((map(.[\$ii] // empty) | map(select(. != "" and . != "00:00:00")) | .[0] // .[0][\$mi])
                   | tostring | gsub("[^a-zA-Z0-9._-]"; "_")),
-                (map(.[$rxi] // 0) | add),
-                (map(.[$txi] // 0) | add)
+                (map(.[\$rxi] // 0) | add),
+                (map(.[\$txi] // 0) | add)
               ]
             | @tsv
         else empty end
