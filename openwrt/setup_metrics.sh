@@ -21,6 +21,9 @@ HA_TOKEN="<ha_token>"       # Long-Lived Access Token
 # Common
 MQTT_TOPIC_PREFIX="openwrt"
 
+# Per-device bandwidth via nlbwmon (luci-app-nlbwmon). Requires jq on router.
+ENABLE_NLBW="true"
+
 # ============================================================
 
 # ---------- Install dependencies ----------
@@ -124,6 +127,28 @@ else
     exit 1
 fi
 
+# ---------- Optional: nlbwmon (per-device bandwidth) ----------
+if [ "$ENABLE_NLBW" = "true" ]; then
+    echo "Installing nlbwmon for per-device bandwidth..."
+    pkg_update
+    if [ "$PKG_MGR" = "opkg" ]; then
+        pkg_install nlbwmon luci-app-nlbwmon jq || pkg_install nlbwmon jq
+    else
+        pkg_install nlbwmon jq || pkg_install nlbwmon
+    fi
+    if [ -x /etc/init.d/nlbwmon ]; then
+        /etc/init.d/nlbwmon enable 2>/dev/null
+        /etc/init.d/nlbwmon start 2>/dev/null
+    fi
+    if ! command -v nlbw >/dev/null 2>&1; then
+        echo "Warning: nlbw CLI not found; per-device stats will be skipped."
+        ENABLE_NLBW="false"
+    elif ! command -v jq >/dev/null 2>&1; then
+        echo "Warning: jq not found; install jq for per-device nlbw export."
+        ENABLE_NLBW="false"
+    fi
+fi
+
 # ---------- Create the metrics script ----------
 
 cat > /usr/bin/publish_metrics.sh << SCRIPT_END
@@ -147,6 +172,7 @@ HA_TOKEN="$HA_TOKEN"
 
 # Common
 MQTT_TOPIC_PREFIX="$MQTT_TOPIC_PREFIX"
+ENABLE_NLBW="$ENABLE_NLBW"
 if command -v uci >/dev/null 2>&1; then
     HOSTNAME=\$(uci get system.@system[0].hostname 2>/dev/null || hostname)
 else
@@ -271,6 +297,34 @@ for INTERFACE in \$(ls /sys/class/net/ | grep -v lo); do
     publish_metric "interface-\$INTERFACE/if_dropped" "rx:\$RX_DROPPED,tx:\$TX_DROPPED"
     publish_metric "interface-\$INTERFACE/if_errors"  "rx:\$RX_ERRORS,tx:\$TX_ERRORS"
 done
+
+# ---------- Per-device bandwidth (nlbwmon) ----------
+publish_nlbw_devices() {
+    [ "\$ENABLE_NLBW" = "true" ] || return 0
+    command -v nlbw >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 0
+
+    nlbw -c json -n 2>/dev/null | jq -r '
+        (if type == "object" and ((.data // []) | type) == "array" then .data[] else .[] end)?
+        | select((.mac // "") != "")
+        | [
+            (.mac | gsub(":"; "") | ascii_downcase),
+            (.host // .ip // .mac | tostring | gsub("[^a-zA-Z0-9._-]"; "_")),
+            (.rx_bytes // 0),
+            (.tx_bytes // 0)
+          ]
+        | @tsv
+    ' | while IFS="\$(printf '\t')" read -r mac_slug host_slug rx tx; do
+        [ -n "\$mac_slug" ] || continue
+        slug="\$mac_slug"
+        if [ -n "\$host_slug" ] && [ "\$host_slug" != "\$mac_slug" ]; then
+            slug="\$host_slug"
+        fi
+        slug=\$(echo "\$slug" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9._-' | cut -c1-48)
+        [ -n "\$slug" ] || continue
+        publish_metric "nlbw-\$slug/if_octets" "rx:\$rx,tx:\$tx"
+    done
+}
+publish_nlbw_devices
 SCRIPT_END
 
 # Make the script executable
