@@ -141,41 +141,18 @@ Uses Home Assistant's MQTT REST API endpoint to publish messages.
    chmod +x /tmp/setup_metrics.sh
    ```
 
-3. **Configure publishing method and MQTT settings:**
+3. **Configure MQTT once** in `/etc/openwrt-metrics.env` (created on first setup; **not** overwritten on re-runs):
 
-   Before running the setup script, edit it to choose your publishing method and configure your MQTT broker details:
    ```bash
-   vi /tmp/setup_metrics.sh
+   vi /etc/openwrt-metrics.env
    ```
 
-   **Choose your publishing method:**
-   ```bash
-   PUBLISH_METHOD="mqtt"    # or "http"
-   ```
+   Or set defaults in `setup_metrics.sh` before the first run only. See `openwrt/openwrt-metrics.env.example`.
 
-   - **`mqtt`** (default): Uses native MQTT protocol via `mosquitto_pub` (installed automatically via opkg)
-   - **`http`**: Uses Home Assistant's MQTT REST API (requires `curl`, installed automatically via opkg)
+   - **`mqtt`** (default): `MQTT_BROKER`, `MQTT_PORT`, `MQTT_USER`, `MQTT_PASSWORD`
+   - **`http`**: `HA_URL`, `HA_PORT`, `HA_TOKEN`
 
-   **For native MQTT method (`mqtt`)**, update these variables:
-   ```bash
-   MQTT_BROKER="<mqtt_broker_ip>"        # Your MQTT broker IP address
-   MQTT_PORT="<mqtt_port>"                # MQTT port (usually 1883)
-   MQTT_USER="<mqtt_user>"                # MQTT username
-   MQTT_PASSWORD="<mqtt_password>"        # MQTT password
-   ```
-
-   **For HTTP/Home Assistant method (`http`)**, update these variables:
-   ```bash
-   HA_URL="<ha_url>"                      # e.g. http://homeassistant.local
-   HA_PORT="<ha_port>"                    # e.g. 8123
-   HA_TOKEN="<ha_token>"                  # Long-Lived Access Token from HA
-   ```
-
-   Save and exit (`:wq` in vi).
-
-   **Alternative**: You can also run the setup script first and then edit `/usr/bin/publish_metrics.sh` afterwards to configure these settings.
-
-4. **Run the setup script:**
+4. **Run the setup script** (downloads `publish_metrics.sh` — no embedded heredoc):
    ```bash
    /tmp/setup_metrics.sh
    ```

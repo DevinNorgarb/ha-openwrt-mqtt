@@ -27,11 +27,13 @@ The slug (`192_168_1_42` or MAC-based) comes from DHCP hostname or IP; friendly 
 1. **Update** `openwrt/setup_metrics.sh` on the router (or re-download from this repo).
 2. Set `ENABLE_NLBW="true"` (default in current script).
 3. Configure MQTT the same as existing metrics (`PUBLISH_METHOD`, broker, credentials).
-4. Run the setup script:
+4. Run the setup script (MQTT credentials live in `/etc/openwrt-metrics.env`, not inside the script):
 
    ```sh
    sh /tmp/setup_metrics.sh
    ```
+
+   First run only: edit `/etc/openwrt-metrics.env` if placeholders were written. Re-runs do **not** overwrite that file.
 
 5. **LuCI check:** Status → **Bandwidth Monitor** — confirm hosts appear after some LAN traffic.
 6. **CLI check:**
