@@ -73,6 +73,10 @@ The integration monitors the following metrics from your OpenWrt router:
   - RX/TX errors (total and rate)
   - RX/TX dropped packets (total and rate)
 
+- **Per-device bandwidth** (optional, via [nlbwmon](docs/NLBW.md))
+  - RX/TX bytes per LAN host (from `luci-app-nlbwmon`)
+  - RX/TX rates calculated in Home Assistant
+
 All network metrics include both cumulative counters and automatically calculated rates (per second).
 
 ## Publishing Methods
@@ -184,6 +188,10 @@ Uses Home Assistant's MQTT REST API endpoint to publish messages.
    Check your MQTT broker to verify that messages are being published under the `openwrt/<hostname>/` topic.
 
 6. **The script is automatically scheduled to run every 5 minutes via cron.**
+
+#### Per-device bandwidth (nlbwmon)
+
+To see **which device** used data (not just WAN totals), enable nlbw in the setup script (`ENABLE_NLBW="true"`, default) and follow **[docs/NLBW.md](docs/NLBW.md)**. Requires `nlbwmon` + `jq` on the router; Home Assistant discovers `openwrt/<hostname>/nlbw-<device>/if_octets` automatically.
 
 #### What the Setup Script Does
 

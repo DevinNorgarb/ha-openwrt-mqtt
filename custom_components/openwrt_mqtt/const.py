@@ -29,4 +29,6 @@ DISCOVERY_TOPICS = [
     "interface-+/if_errors",
     "interface-+/if_dropped",
     "interface-+/if_packets",
+    # Per-device bandwidth from nlbwmon (luci-app-nlbwmon)
+    "nlbw-+/if_octets",
 ]
