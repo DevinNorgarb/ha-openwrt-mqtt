@@ -31,4 +31,5 @@ DISCOVERY_TOPICS = [
     "interface-+/if_packets",
     # Per-device bandwidth from nlbwmon (luci-app-nlbwmon)
     "nlbw-+/if_octets",
+    "nlbw-+/if_rate",
 ]

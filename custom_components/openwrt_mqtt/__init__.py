@@ -176,7 +176,12 @@ def generate_unique_ids_for_metric(entry_id: str, hostname: str, metric_type: st
         for load_type in ["1min", "5min", "15min"]:
             unique_ids.append(f"{prefix}_cpu_load_{load_type}")
 
-    # Network interfaces / nlbw per-device: 2 total + 2 rate sensors (RX and TX)
+    elif metric_type.startswith("nlbw-") and metric_type.endswith("/if_rate"):
+        base_id = metric_type.replace("/", "_").replace("-", "_")
+        for direction in ["rx", "tx"]:
+            unique_ids.append(f"{prefix}_{base_id}_{direction}")
+
+    # Network interfaces / nlbw period totals (+ interface rate sensors)
     elif (
         metric_type.startswith(("interface-", "nlbw-"))
         and metric_type.endswith(

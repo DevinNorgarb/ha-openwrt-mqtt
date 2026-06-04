@@ -133,9 +133,15 @@ for INTERFACE in $(ls /sys/class/net/ | grep -v lo); do
 done
 
 # ---------- Per-device bandwidth (nlbwmon) ----------
+NLBW_STATE_FILE="/tmp/nlbw-metrics.state"
+NLBW_STATE_NEW="/tmp/nlbw-metrics.state.new"
+
 publish_nlbw_devices() {
     [ "$ENABLE_NLBW" = "true" ] || return 0
     command -v nlbw >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 0
+
+    : > "$NLBW_STATE_NEW"
+    now=$(date +%s)
 
     # OpenWrt jq is often built without ONIGURUMA — no gsub/test/match. Slugify in shell.
     nlbw -c json -n 2>/dev/null | jq -r '
@@ -170,6 +176,23 @@ publish_nlbw_devices() {
         slug=$(printf '%s' "$slug" | cut -c1-48)
         [ -n "$slug" ] || continue
         publish_metric "nlbw-$slug/if_octets" "rx:$rx,tx:$tx"
+
+        if [ -f "$NLBW_STATE_FILE" ]; then
+            last_line=$(grep "^${slug} " "$NLBW_STATE_FILE" 2>/dev/null | tail -1)
+            if [ -n "$last_line" ]; then
+                last_rx=$(printf '%s' "$last_line" | awk '{print $2}')
+                last_tx=$(printf '%s' "$last_line" | awk '{print $3}')
+                last_ts=$(printf '%s' "$last_line" | awk '{print $4}')
+                dt=$((now - last_ts))
+                if [ "$dt" -gt 0 ] && [ "$rx" -ge "$last_rx" ] && [ "$tx" -ge "$last_tx" ]; then
+                    rx_mbit=$(awk -v d=$((rx - last_rx)) -v t="$dt" 'BEGIN { printf "%.3f", (d * 8) / t / 1000000 }')
+                    tx_mbit=$(awk -v d=$((tx - last_tx)) -v t="$dt" 'BEGIN { printf "%.3f", (d * 8) / t / 1000000 }')
+                    publish_metric "nlbw-$slug/if_rate" "rx:$rx_mbit,tx:$tx_mbit"
+                fi
+            fi
+        fi
+        echo "$slug $rx $tx $now" >> "$NLBW_STATE_NEW"
     done
+    mv "$NLBW_STATE_NEW" "$NLBW_STATE_FILE"
 }
 publish_nlbw_devices

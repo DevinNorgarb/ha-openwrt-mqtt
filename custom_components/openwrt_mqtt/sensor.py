@@ -12,6 +12,8 @@ from .const import DOMAIN, DEFAULT_TEMPERATURE_UNIT
 _LOGGER = logging.getLogger(__name__)
 
 _TRAFFIC_SUFFIXES = ("/if_octets", "/if_packets", "/if_errors", "/if_dropped")
+# Home Assistant UnitOfInformation.GIGABYTES uses decimal GB (10^9 bytes).
+_NLBW_BYTES_PER_GB = 1_000_000_000
 
 
 def _traffic_kind(metric_type: str) -> str | None:
@@ -81,16 +83,23 @@ def create_sensors_for_metric(hass, data, device_info):
             sensor_data["load_type"] = load_type
             sensors.append(OpenWrtMQTTSensor(hass, sensor_data, device_info))
 
-    # Network interfaces / nlbw per-device: 2 total + 2 rate sensors (RX and TX)
-    elif _traffic_kind(metric_type):
+    # nlbw live speed (Mbit/s) published by the router from consecutive samples
+    elif metric_type.startswith("nlbw-") and metric_type.endswith("/if_rate"):
         for direction in ["rx", "tx"]:
-            # Total sensor (cumulative counter)
             sensor_data = data.copy()
             sensor_data["direction"] = direction
             sensor_data["sensor_type"] = "total"
             sensors.append(OpenWrtMQTTSensor(hass, sensor_data, device_info))
 
-            # Rate sensor (automatically calculated rate)
+    # Network interfaces / nlbw period totals (+ interface rate sensors)
+    elif _traffic_kind(metric_type):
+        kind = _traffic_kind(metric_type)
+        for direction in ["rx", "tx"]:
+            sensor_data = data.copy()
+            sensor_data["direction"] = direction
+            sensor_data["sensor_type"] = "total"
+            sensors.append(OpenWrtMQTTSensor(hass, sensor_data, device_info))
+
             rate_data = data.copy()
             rate_data["direction"] = direction
             rate_data["sensor_type"] = "rate"
@@ -194,15 +203,27 @@ class OpenWrtMQTTSensor(SensorEntity):
 
         # Network interfaces / nlbw per-device
         if _traffic_kind(metric_type):
+            kind = _traffic_kind(metric_type)
             label = _traffic_label(metric_type)
             metric = parts[1] if len(parts) > 1 else ""
-            direction = self._data.get("direction", "").upper()
+            direction = self._data.get("direction", "rx")
             sensor_type = self._data.get("sensor_type", "total")
+            if metric == "if_rate":
+                return (
+                    f"{label} Download speed"
+                    if direction == "rx"
+                    else f"{label} Upload speed"
+                )
             if metric == "if_octets":
+                if kind == "nlbw":
+                    return (
+                        f"{label} Downloaded this period"
+                        if direction == "rx"
+                        else f"{label} Uploaded this period"
+                    )
                 if sensor_type == "rate":
-                    return f"{hostname} {label} {direction} Rate"
-                else:
-                    return f"{hostname} {label} {direction}"
+                    return f"{hostname} {label} {direction.upper()} Rate"
+                return f"{hostname} {label} {direction.upper()}"
             elif metric == "if_packets":
                 if sensor_type == "rate":
                     return f"{hostname} {label} Packets {direction} Rate"
@@ -303,11 +324,28 @@ class OpenWrtMQTTSensor(SensorEntity):
             self._attr_icon = "mdi:connection"
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
-        # Network bytes
+        # Network bytes / router-published Mbit/s (nlbw if_rate)
+        elif "if_rate" in metric_type:
+            self._attr_native_unit_of_measurement = UnitOfDataRate.MEGABITS_PER_SECOND
+            self._attr_device_class = SensorDeviceClass.DATA_RATE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+            self._attr_suggested_display_precision = 2
+            direction = self._data.get("direction", "rx")
+            if direction == "tx":
+                self._attr_icon = "mdi:upload-network"
+            else:
+                self._attr_icon = "mdi:download-network"
+
         elif "if_octets" in metric_type:
             sensor_type = self._data.get("sensor_type", "total")
             if sensor_type == "total":
-                self._attr_native_unit_of_measurement = UnitOfInformation.BYTES
+                if _traffic_kind(metric_type) == "nlbw":
+                    self._attr_native_unit_of_measurement = UnitOfInformation.GIGABYTES
+                    self._attr_suggested_display_precision = 2
+                else:
+                    self._attr_native_unit_of_measurement = UnitOfInformation.BYTES
+                    self._attr_suggested_unit_of_measurement = UnitOfInformation.GIGABYTES
+                    self._attr_suggested_display_precision = 2
                 self._attr_device_class = SensorDeviceClass.DATA_SIZE
                 self._attr_state_class = SensorStateClass.TOTAL_INCREASING
 
@@ -439,18 +477,26 @@ class OpenWrtMQTTSensor(SensorEntity):
                         value_mb = value / 1024
                         return round(value_mb, 2)
 
-            # Network / nlbw traffic: format is "rx:123456,tx:789012"
-            elif _traffic_kind(metric_type):
-                match = re.search(r'rx:([\d]+),tx:([\d]+)', payload)
+            # Network / nlbw traffic: "rx:…,tx:…" (bytes or Mbit/s for if_rate)
+            elif _traffic_kind(metric_type) or (
+                metric_type.startswith("nlbw-") and metric_type.endswith("/if_rate")
+            ):
+                match = re.search(r'rx:([\d.]+),tx:([\d.]+)', payload)
                 if match:
-                    rx_value = int(match.group(1))
-                    tx_value = int(match.group(2))
+                    if metric_type.endswith("/if_rate"):
+                        rx_value = float(match.group(1))
+                        tx_value = float(match.group(2))
+                    else:
+                        rx_value = int(float(match.group(1)))
+                        tx_value = int(float(match.group(2)))
+                        if _traffic_kind(metric_type) == "nlbw":
+                            rx_value = round(rx_value / _NLBW_BYTES_PER_GB, 2)
+                            tx_value = round(tx_value / _NLBW_BYTES_PER_GB, 2)
 
-                    # Return the value corresponding to the direction
                     direction = self._data.get("direction", "rx")
                     if direction == "rx":
                         return rx_value
-                    elif direction == "tx":
+                    if direction == "tx":
                         return tx_value
 
             # System information
@@ -517,17 +563,24 @@ class OpenWrtMQTTRateSensor(SensorEntity):
 
         # Network interfaces / nlbw per-device
         if _traffic_kind(metric_type):
+            kind = _traffic_kind(metric_type)
             label = _traffic_label(metric_type)
             metric = parts[1] if len(parts) > 1 else ""
-            direction = self._data.get("direction", "").upper()
+            direction = self._data.get("direction", "rx")
             if metric == "if_octets":
-                return f"{hostname} {label} {direction} Rate"
+                if kind == "nlbw":
+                    return (
+                        f"{label} Download speed"
+                        if direction == "rx"
+                        else f"{label} Upload speed"
+                    )
+                return f"{hostname} {label} {direction.upper()} Rate"
             elif metric == "if_packets":
-                return f"{hostname} {label} Packets {direction} Rate"
+                return f"{hostname} {label} Packets {direction.upper()} Rate"
             elif metric == "if_errors":
-                return f"{hostname} {label} Errors {direction} Rate"
+                return f"{hostname} {label} Errors {direction.upper()} Rate"
             elif metric == "if_dropped":
-                return f"{hostname} {label} Dropped {direction} Rate"
+                return f"{hostname} {label} Dropped {direction.upper()} Rate"
 
         # Default
         return f"{hostname} {metric_type.replace('/', ' ').replace('-', ' ').title()} Rate"
@@ -541,9 +594,11 @@ class OpenWrtMQTTRateSensor(SensorEntity):
         self._attr_suggested_display_precision = None
         self._attr_icon = None
 
-        # Network bytes
+        # Network bytes (stored as B/s internally, displayed as Mbit/s)
         if "if_octets" in metric_type:
-            self._attr_native_unit_of_measurement = "B/s"
+            self._attr_native_unit_of_measurement = UnitOfDataRate.MEGABITS_PER_SECOND
+            self._attr_device_class = SensorDeviceClass.DATA_RATE
+            self._attr_suggested_display_precision = 2
 
             direction = self._data.get("direction", "rx")
             if direction == "tx":
@@ -606,11 +661,9 @@ class OpenWrtMQTTRateSensor(SensorEntity):
                     self._last_update = now
                     return
 
-                # Calculate rate (per second)
-                rate = value_delta / time_delta
-
-                # Update state
-                self._state = round(rate, 2)
+                # Bytes per second → megabits per second (×8 bits, ÷1e6)
+                rate_bps = value_delta / time_delta
+                self._state = round((rate_bps * 8) / 1_000_000, 2)
                 self._last_value = parsed_value
                 self._last_update = now
 

@@ -8,8 +8,8 @@ For each LAN client seen by nlbwmon, the integration auto-creates (under your Op
 
 | Sensor | Meaning |
 |--------|---------|
-| `… <host> RX` | Cumulative download bytes (period totals from nlbw) |
-| `… <host> TX` | Cumulative upload bytes |
+| `… <host> RX` | Cumulative download for the nlbw period (**GB** in Home Assistant) |
+| `… <host> TX` | Cumulative upload for the nlbw period (**GB**) |
 | `… <host> RX Rate` | Live download speed (B/s, computed in HA) |
 | `… <host> TX Rate` | Live upload speed |
 

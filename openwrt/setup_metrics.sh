@@ -218,6 +218,6 @@ chmod +x "$PUBLISH_DEST"
 echo "publish_metrics.sh ready (config: $ENV_FILE, method: $PUBLISH_METHOD)"
 
 # Schedule the script to run every 5 minutes
-(crontab -l 2>/dev/null | grep -v "publish_metrics.sh"; echo "*/5 * * * * /usr/bin/publish_metrics.sh") | crontab -
+(crontab -l 2>/dev/null | grep -v "publish_metrics.sh"; echo "*/2 * * * * /usr/bin/publish_metrics.sh") | crontab -
 
 echo "Cron job configured. Done."
